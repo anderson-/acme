@@ -13,7 +13,7 @@ ARDUINO := ${PWD}/bin/arduino-cli
 ARDUINO := ARDUINO_DATA_DIR=${ADATA} ${ARDUINO} --config-file ${CFG}
 SRC     ?= main
 PROP    := ${SRC}/project.yaml
-FQBN    := $(shell cat ${PROP} | grep fqbn | cut -d' ' -f2)
+FQBN    := $(shell cat ${PROP} | grep board | cut -d' ' -f2)
 CORE    := $(shell echo ${FQBN} | cut -d: -f1)
 LIBS    := $(shell cat ${PROP} | grep libs | cut -d' ' -f2)
 SSID    := $(shell cat wifi.yaml | grep ssid | tr -d ' ' | cut -d: -f2)
@@ -127,3 +127,6 @@ monitor:
 monitor-hex:
 	stty ${BAUD} -F ${PORT} raw -echo
 	cat ${PORT} | hexdump -C
+
+list-boards:
+	${ARDUINO} board listall
