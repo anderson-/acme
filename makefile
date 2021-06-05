@@ -2,6 +2,7 @@ SYSDEPS := python3 pip3 bash rsync
 _CHECK  := $(foreach exec,$(SYSDEPS),\
 			$(if $(shell which $(exec)),,$(error "No $(exec) in PATH")))
 SHELL   := /bin/bash
+MKDIR   ?= ${PWD}
 AC_REPO := https://github.com/arduino/arduino-cli
 AC_VER  := 0.18.3
 SO      := Linux_64bit
@@ -16,8 +17,9 @@ PROP    := ${SRC}/project.yaml
 FQBN    := $(shell cat ${PROP} | grep board | cut -d' ' -f2)
 CORE    := $(shell echo ${FQBN} | cut -d: -f1)
 LIBS    := $(shell cat ${PROP} | grep libs | cut -d' ' -f2)
-SSID    := $(shell cat wifi.yaml | grep ssid | tr -d ' ' | cut -d: -f2)
-PSK     := $(shell cat wifi.yaml | grep psk | tr -d ' ' | cut -d: -f2)
+WIFI    ?= ${MKDIR}/wifi.yaml
+SSID    := $(shell cat ${WIFI} | grep ssid | tr -d ' ' | cut -d: -f2)
+PSK     := $(shell cat ${WIFI} | grep psk | tr -d ' ' | cut -d: -f2)
 FLAGS   ?=
 DEV     ?= 1
 DEFINES := $(if ${DEV},DEVELOPMENT,)
@@ -53,7 +55,8 @@ bin:
 	fi
 	mkdir -p ${ADATA}
 	ADATA=${ADATA}; ADATA=$${ADATA//\//\\\/}; \
-	sed "s/arduino_data.*/arduino_data: $${ADATA}/g" arduino-cli.yaml > ${CFG}
+	sed "s/arduino_data.*/arduino_data: $${ADATA}/g" \
+		${MKDIR}/arduino-cli.yaml > ${CFG}
 
 bin/arduino-cli: bin
 	wget -q ${AC_TAR} -O - | tar -xz -C ${PWD}/bin/
