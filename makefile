@@ -1,7 +1,7 @@
 SYSDEPS := python3 pip3 bash rsync
 _CHECK  := $(foreach exec,$(SYSDEPS),\
 			$(if $(shell which $(exec)),,$(error "No $(exec) in PATH")))
-SHELL   ?= /bin/bash
+SHELL   := /bin/bash
 MKDIR   ?= ${PWD}
 AC_REPO ?= https://github.com/arduino/arduino-cli
 AC_VER  ?= 0.18.3
