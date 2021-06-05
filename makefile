@@ -1,25 +1,25 @@
 SYSDEPS := python3 pip3 bash rsync
 _CHECK  := $(foreach exec,$(SYSDEPS),\
 			$(if $(shell which $(exec)),,$(error "No $(exec) in PATH")))
-SHELL   := /bin/bash
+SHELL   ?= /bin/bash
 MKDIR   ?= ${PWD}
-AC_REPO := https://github.com/arduino/arduino-cli
-AC_VER  := 0.18.3
-SO      := Linux_64bit
+AC_REPO ?= https://github.com/arduino/arduino-cli
+AC_VER  ?= 0.18.3
+SO      ?= Linux_64bit
 _REL    := /releases/download/
 AC_TAR  := ${AC_REPO}${_REL}${AC_VER}/arduino-cli_${AC_VER}_${SO}.tar.gz
 ADATA   := ${PWD}/bin/.arduino15
-CFG     := ${ADATA}/arduino-cli.yaml
+CFG     ?= ${ADATA}/arduino-cli.yaml
 ARDUINO := ${PWD}/bin/arduino-cli
 ARDUINO := ARDUINO_DATA_DIR=${ADATA} ${ARDUINO} --config-file ${CFG}
 SRC     ?= main
-PROP    := ${SRC}/project.yaml
-FQBN    := $(shell cat ${PROP} | grep board | cut -d' ' -f2)
+PROP    ?= ${SRC}/project.yaml
+FQBN    ?= $(shell cat ${PROP} | grep board | cut -d' ' -f2)
 CORE    := $(shell echo ${FQBN} | cut -d: -f1)
-LIBS    := $(shell cat ${PROP} | grep libs | cut -d' ' -f2)
+LIBS    ?= $(shell cat ${PROP} | grep libs | cut -d' ' -f2)
 WIFI    ?= ${MKDIR}/wifi.yaml
-SSID    := $(shell cat ${WIFI} | grep ssid | tr -d ' ' | cut -d: -f2)
-PSK     := $(shell cat ${WIFI} | grep psk | tr -d ' ' | cut -d: -f2)
+SSID    ?= $(shell cat ${WIFI} | grep ssid | tr -d ' ' | cut -d: -f2)
+PSK     ?= $(shell cat ${WIFI} | grep psk | tr -d ' ' | cut -d: -f2)
 FLAGS   ?=
 DEV     ?= 1
 DEFINES := $(if ${DEV},DEVELOPMENT,)
@@ -29,9 +29,9 @@ FILES   := $(call RWC,${SRC},*.c *.cpp *.h *.hpp *.ino)
 FLAGS   := ${FLAGS} $(foreach def, ${DEFINES}, -D$(def))
 FLAGS   := ${FLAGS} -DSTASSID="$(SSID)"
 FLAGS   := ${FLAGS} -DSTAPSK="$(PSK)"
-RAMFS   := /dev/shm2  # disabled
-RAMDISK := ${RAMFS}/quickbuild
-BUILD   := .build/${SRC}
+RAMFS   ?= /dev/shm2  # disabled
+RAMDISK ?= ${RAMFS}/quickbuild
+BUILD   ?= .build/${CORE}/${SRC}
 OBJ     := ${BUILD}/*.ino.elf
 OTAIP   ?=
 OTAPORT ?=
@@ -99,11 +99,12 @@ flash: ${OBJ}
 
 .PHONY: clean
 clean:
-	rm -rf .build
+	rm -rf ${BUILD}
 
 .PHONY: clean-all
 clean-all: clean
 	rm -rf bin
+	rm -rf .build
 	rm -rf ${RAMDISK}
 
 .PHONY: deploy
