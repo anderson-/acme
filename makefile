@@ -37,13 +37,18 @@ OTAIP   ?=
 OTAPORT ?=
 BAUD    ?= 115200
 PORT    ?= /dev/ttyUSB0
+VENV    := . .venv/bin/activate
+PY      := ${VENV} && python3
 OTA     := bin/.arduino15/packages/${CORE}/hardware/${CORE}/*/tools/espota.py
+MKFS    := bin/.arduino15/packages/${CORE}/tools/mkspiffs/*/mkspiffs
 
 .ONESHELL:
 
-.PHONY: deps
-deps:
-	which yq || pip3 install pyserial esptool yq
+.venv:
+	which virtualenv || sudo pip3 install virtualenv
+	virtualenv -p python3 .venv
+	. .venv/bin/activate && pip3 install pyserial esptool yq \
+		pyaml zeroconf websockets || rm -rf .venv
 
 bin:
 	${MAKE} deps
@@ -119,7 +124,7 @@ ota: ${OBJ}
 	@ if [ -z ${OTAPORT} ]; then
 		OTAPORT=$$(avahi-browse -ptr  "_arduino._tcp" | grep = | cut -d\; -f9)
 	fi
-	python3 ${OTA} -i $${OTAIP} -p $${OTAPORT} -f ${BUILD}/*.ino.bin
+	${PY} ${OTA} -i $${OTAIP} -p $${OTAPORT} -f ${BUILD}/*.ino.bin
 
 find:
 	avahi-browse -ptr  "_arduino._tcp" | grep = | cut -d\; -f4,8,9
@@ -134,3 +139,20 @@ monitor-hex:
 
 list-boards:
 	${ARDUINO} board listall
+
+${BUILD}/img.bin: ${SRC}/data/*
+	SIZE=$$(cat ${BUILD}/partitions.csv | grep spiffs | cut -d, -f5)
+	${MKFS} -c ${SRC}/data -s $${SIZE} ${BUILD}/img.bin
+
+.PHONY: fs
+fs: ${BUILD}/img.bin
+
+ota-fs: ${BUILD}/img.bin
+	@ if [ -z ${OTAIP} ]; then
+		OTAIP=$$(avahi-browse -ptr  "_arduino._tcp" | grep = | cut -d\; -f8)
+	fi
+	fi
+	@ if [ -z ${OTAPORT} ]; then
+		OTAPORT=$$(avahi-browse -ptr  "_arduino._tcp" | grep = | cut -d\; -f9)
+	fi
+	${PY} ${OTA} -i $${OTAIP} -p $${OTAPORT} -s -f ${BUILD}/img.bin
