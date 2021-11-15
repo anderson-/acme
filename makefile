@@ -47,8 +47,9 @@ MKFS    := bin/.arduino15/packages/${CORE}/tools/mkspiffs/*/mkspiffs
 .venv:
 	which virtualenv || sudo pip3 install virtualenv
 	virtualenv -p python3 .venv
-	. .venv/bin/activate && pip3 install pyserial esptool yq \
+	${VENV} && pip3 install pyserial esptool yq \
 		pyaml zeroconf websockets || rm -rf .venv
+	which jq || sudo apt install jq	
 
 bin:
 	${MAKE} deps
@@ -89,7 +90,7 @@ ${BUILD}:
 ${OBJ}: ${BUILD} ${ADATA}/packages/${CORE} ${FILES}
 	time ${ARDUINO} compile --fqbn ${FQBN} \
 		$(foreach include, \
-	 		$(shell cat ${PROP} | yq -Y .include | tr -d ' -'), \
+	 		$(shell ${VENV} && cat ${PROP} | yq -Y .include | tr -d ' -'), \
 	 	  --libraries $(include)) \
 	 	--build-property 'compiler.cpp.extra_flags=${FLAGS}' \
 	 	--build-cache-path $$(pwd)/${BUILD} \
