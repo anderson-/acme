@@ -9,6 +9,7 @@ SO      ?= Linux_64bit
 _REL    := /releases/download/
 AC_TAR  := ${AC_REPO}${_REL}${AC_VER}/arduino-cli_${AC_VER}_${SO}.tar.gz
 ADATA   := ${PWD}/bin/.arduino15
+ALIBS   := ${PWD}/bin
 CFG     ?= ${ADATA}/arduino-cli.yaml
 ARDUINO := ${PWD}/bin/arduino-cli
 ARDUINO := ARDUINO_DATA_DIR=${ADATA} ${ARDUINO} --config-file ${CFG}
@@ -16,7 +17,6 @@ SRC     ?= main
 PROP    ?= ${SRC}/project.yaml
 FQBN    ?= $(shell cat ${PROP} | grep board | cut -d' ' -f2)
 CORE    := $(shell echo ${FQBN} | cut -d: -f1)
-LIBS    ?= $(shell cat ${PROP} | grep libs | cut -d' ' -f2)
 WIFI    ?= ${MKDIR}/wifi.yaml
 SSID    ?= $(shell cat ${WIFI} | grep ssid | tr -d ' ' | cut -d: -f2)
 PSK     ?= $(shell cat ${WIFI} | grep psk | tr -d ' ' | cut -d: -f2)
@@ -63,6 +63,8 @@ bin:
 	ADATA=${ADATA}; ADATA=$${ADATA//\//\\\/}; \
 	sed "s/arduino_data.*/arduino_data: $${ADATA}/g" \
 		${MKDIR}/arduino-cli.yaml > ${CFG}
+	ALIBS=${ALIBS}; ALIBS=$${ALIBS//\//\\\/}; \
+	sed -i "s/  user:.*/  user: $${ALIBS}/g" ${CFG}
 
 bin/arduino-cli: bin
 	wget -q ${AC_TAR} -O - | tar -xz -C ${PWD}/bin/
@@ -87,7 +89,29 @@ ${BUILD}:
 		mkdir -p ${BUILD}
 	fi
 
-${OBJ}: ${BUILD} ${ADATA}/packages/${CORE} ${FILES}
+.PHONY: download-libs
+download-libs:
+	@ ${VENV} && cat ${PROP} | yq -Y .libs | tr -d ' -' | \
+		while read LIB; do
+			NAME=$$(echo $$LIB | cut -d@ -f1)
+			VERSION=$$(echo $$LIB | cut -d@ -f2)
+			if [ ! -e ${PWD}/bin/libraries/${NAME} ]; then
+				${ARDUINO} lib install $$NAME@$$VERSION
+			else
+				IVER=$$(cat ${PWD}/bin/libraries/$$NAME/library.properties \
+					| grep version | cut -d= -f2)
+				if [ ! "$$IVER" = "$$VERSION" ]; then
+					${ARDUINO} lib install $$NAME@$$VERSION
+				fi
+			fi
+			if [ "$$NAME" = "Tiny4kOLED" ]; then
+				# find string avr/pgmspace in files and replace with pgmspace
+				find ${PWD}/bin/libraries/$$NAME -type f -exec sed -i \
+					-e 's/avr\/pgmspace/pgmspace/g' {} \;
+			fi
+		done
+
+${OBJ}: download-libs ${BUILD} ${ADATA}/packages/${CORE} ${FILES}
 	time ${ARDUINO} compile --fqbn ${FQBN} \
 		$(foreach include, \
 	 		$(shell ${VENV} && cat ${PROP} | yq -Y .include | tr -d ' -'), \
