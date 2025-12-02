@@ -1,13 +1,29 @@
-SYSDEPS := python3 pip3 bash rsync
+SYSDEPS := python3 pip3 bash rsync curl
 _CHECK  := $(foreach exec,$(SYSDEPS),\
 			$(if $(shell which $(exec)),,$(error "No $(exec) in PATH")))
 SHELL   := /bin/bash
+UNAME_S := $(shell uname -s)
+UNAME_M := $(shell uname -m)
+TIMEOUT := 0.2
+ifeq ($(UNAME_S),Darwin)
+DEFAULT_SO := $(if $(filter arm64 aarch64,$(UNAME_M)),macOS_ARM64,macOS_64bit)
+SCAN      := timeout ${TIMEOUT} dns-sd -B _arduino._tcp > /tmp/scan
+SCAN_DEV  := timeout ${TIMEOUT} dns-sd -Gv4 $$(cat /tmp/scan | grep local | tr -s ' ' | cut -d' ' -f 7).local. > /tmp/scan
+SCAN_IP   := cat /tmp/scan | grep local | tr -s ' ' | cut -d' ' -f 6
+SCAN_PORT := echo 3232
+else
+DEFAULT_SO := $(if $(filter arm64 aarch64,$(UNAME_M)),Linux_ARM64,Linux_64bit)
+SCAN      := avahi-browse -ptr "_arduino._tcp" > /tmp/scan
+SCAN_DEV  := cat /tmp/scan | grep "="
+SCAN_IP   := cat /tmp/scan | cut -d\; -f8
+SCAN_PORT := cat /tmp/scan | cut -d\; -f9
+endif
 MKDIR   ?= ${PWD}
 AC_REPO ?= https://github.com/arduino/arduino-cli
-AC_VER  ?= 0.18.3
-SO      ?= Linux_64bit
-_REL    := /releases/download/
-AC_TAR  := ${AC_REPO}${_REL}${AC_VER}/arduino-cli_${AC_VER}_${SO}.tar.gz
+AC_VER  ?= 1.3.1
+SO      ?= ${DEFAULT_SO}
+AC_BASE ?= https://downloads.arduino.cc/arduino-cli
+AC_TAR  := ${AC_BASE}/arduino-cli_${AC_VER}_${SO}.tar.gz
 ADATA   := ${PWD}/bin/.arduino15
 ALIBS   := ${PWD}/bin
 CFG     ?= ${ADATA}/arduino-cli.yaml
@@ -44,12 +60,11 @@ MKFS    := bin/.arduino15/packages/${CORE}/tools/mkspiffs/*/mkspiffs
 
 .ONESHELL:
 
+shell:
+	nix-shell
+
 .venv:
-	which virtualenv || sudo pip3 install virtualenv
 	virtualenv -p python3 .venv
-	${VENV} && pip3 install pyserial esptool yq \
-		pyaml zeroconf websockets || rm -rf .venv
-	which jq || sudo apt install jq	
 
 bin:
 	${MAKE} deps
@@ -67,7 +82,7 @@ bin:
 	sed -i "s/  user:.*/  user: $${ALIBS}/g" ${CFG}
 
 bin/arduino-cli: bin
-	wget -q ${AC_TAR} -O - | tar -xz -C ${PWD}/bin/
+	curl -fsSL ${AC_TAR} | tar -xz -C ${PWD}/bin/
 	touch bin/arduino-cli
 
 ${ADATA}/package_index.json: bin/arduino-cli
@@ -78,8 +93,15 @@ ${ADATA}/packages/${CORE}: ${ADATA}/package_index.json
 	${ARDUINO} core install ${CORE}:${CORE}
 	touch ${ADATA}/packages/${CORE}
 
+.PHONY: checksrc
+checksrc:
+	@ if [ ! -d "${SRC}" ]; then \
+		echo -e "\033[31m>>> Source directory ${SRC} not found! Set SRC variable to point to your sketch directory.\033[0m"; \
+		exit 1; \
+	fi
+
 .PHONY: core
-core: ${ADATA}/packages/${CORE}
+core: checksrc ${ADATA}/packages/${CORE}
 
 ${BUILD}:
 	if [ -e ${RAMFS} ]; then
@@ -111,18 +133,20 @@ download-libs:
 			fi
 		done
 
-${OBJ}: download-libs ${BUILD} ${ADATA}/packages/${CORE} ${FILES}
+${OBJ}: checksrc download-libs ${BUILD} ${ADATA}/packages/${CORE} ${FILES}
 	time ${ARDUINO} compile --fqbn ${FQBN} \
 		$(foreach include, \
 	 		$(shell ${VENV} && cat ${PROP} | yq -Y .include | tr -d ' -'), \
 	 	  --libraries $(include)) \
 	 	--build-property 'compiler.cpp.extra_flags=${FLAGS}' \
-	 	--build-cache-path $$(pwd)/${BUILD} \
 	 	--build-path $$(pwd)/${BUILD} \
 	 	${SRC} -v
 
 .PHONY: build
 build: ${OBJ}
+
+.PHONY: deps
+deps: .venv
 
 flash: ${OBJ}
 	time ${ARDUINO} upload -p ${PORT} --fqbn ${FQBN} -i ${OBJ} ${SRC} -v
@@ -135,7 +159,9 @@ clean:
 clean-all: clean
 	rm -rf bin
 	rm -rf .build
-	rm -rf ${RAMDISK}
+	if [ -e ${RAMFS} ]; then
+		rm -rf ${RAMDISK}
+	fi
 
 .PHONY: deploy
 deploy:
@@ -143,16 +169,24 @@ deploy:
 	DEV= ${MAKE} -s build
 
 ota: ${OBJ}
-	@ if [ -z ${OTAIP} ]; then
-		OTAIP=$$(avahi-browse -ptr  "_arduino._tcp" | grep = | cut -d\; -f8)
+	@ if [ -z ${OTAIP} -o -z ${OTAPORT} ]; then
+		${SCAN}
+		${SCAN_DEV}
+		if [ -z ${OTAIP} ]; then
+			OTAIP=$$(${SCAN_IP})
+		fi
+		if [ -z ${OTAPORT} ]; then
+			OTAPORT=$$(${SCAN_PORT})
+		fi
 	fi
-	@ if [ -z ${OTAPORT} ]; then
-		OTAPORT=$$(avahi-browse -ptr  "_arduino._tcp" | grep = | cut -d\; -f9)
-	fi
-	${PY} ${OTA} -i $${OTAIP} -p $${OTAPORT} -f ${BUILD}/*.ino.bin
+	${PY} ${OTA} -i "$${OTAIP}" -p $${OTAPORT} -f ${BUILD}/*.ino.bin
 
 find:
-	avahi-browse -ptr  "_arduino._tcp" | grep = | cut -d\; -f4,8,9
+	${SCAN}
+	${SCAN_DEV}
+	OTAIP=$$(${SCAN_IP})
+	OTAPORT=$$(${SCAN_PORT})
+	echo "Found: $${OTAIP}@$${OTAPORT}"
 
 monitor:
 	stty ${BAUD} -F ${PORT} raw -echo
@@ -173,11 +207,14 @@ ${BUILD}/img.bin: ${SRC}/data/*
 fs: ${BUILD}/img.bin
 
 ota-fs: ${BUILD}/img.bin
-	@ if [ -z ${OTAIP} ]; then
-		OTAIP=$$(avahi-browse -ptr  "_arduino._tcp" | grep = | cut -d\; -f8)
+	@ if [ -z ${OTAIP} -o -z ${OTAPORT} ]; then
+		${SCAN}
+		${SCAN_DEV}
+		if [ -z ${OTAIP} ]; then
+			OTAIP=$$(${SCAN_IP})
+		fi
+		if [ -z ${OTAPORT} ]; then
+			OTAPORT=$$(${SCAN_PORT})
+		fi
 	fi
-	fi
-	@ if [ -z ${OTAPORT} ]; then
-		OTAPORT=$$(avahi-browse -ptr  "_arduino._tcp" | grep = | cut -d\; -f9)
-	fi
-	${PY} ${OTA} -i $${OTAIP} -p $${OTAPORT} -s -f ${BUILD}/img.bin
+	${PY} ${OTA} -i "$${OTAIP}" -p $${OTAPORT} -s -f ${BUILD}/img.bin
