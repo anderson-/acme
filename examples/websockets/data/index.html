@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ESP32 LED Control</title>
+    <style>
+        body { font-family: Arial; text-align: center; padding: 20px; }
+        button { padding: 10px 20px; margin: 10px; font-size: 16px; cursor: pointer; }
+        .on { background: green; color: white; }
+        .off { background: red; color: white; }
+        .status { margin: 20px; padding: 10px; }
+        .led-on { background: #d4edda; }
+        .led-off { background: #f8d7da; }
+    </style>
+</head>
+<body>
+    <h1>ESP32 LED Control</h1>
+    <div id="status" class="status led-off">LED: OFF</div>
+    <button id="btnOn" class="on">ON</button>
+    <button id="btnOff" class="off">OFF</button>
+
+    <script>
+        let ws = new WebSocket('ws://' + window.location.hostname + ':81');
+
+        ws.onopen = () => console.log('Connected');
+        ws.onclose = () => setTimeout(() => location.reload(), 3000);
+
+        ws.onmessage = (e) => {
+            const msg = e.data.trim();
+            const status = document.getElementById('status');
+            if (msg === 'LED_ON') {
+                status.textContent = 'LED: ON';
+                status.className = 'status led-on';
+            } else if (msg === 'LED_OFF') {
+                status.textContent = 'LED: OFF';
+                status.className = 'status led-off';
+            }
+        };
+
+        document.getElementById('btnOn').onclick = () => ws.send('LED_ON');
+        document.getElementById('btnOff').onclick = () => ws.send('LED_OFF');
+    </script>
+</body>
+</html>
