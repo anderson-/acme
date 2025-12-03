@@ -1,0 +1,6 @@
+board: esp32:esp32:lolin32-lite
+include:
+libs:
+  - WebSockets@2.3.5
+  - ArduinoJson@6.21.3
+  - FastLED@3.10.3
