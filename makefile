@@ -90,6 +90,7 @@ ${ADATA}/package_index.json: bin/arduino-cli
 	touch ${ADATA}/package_index.json
 
 ${ADATA}/packages/${CORE}: ${ADATA}/package_index.json
+	${MAKE} checksrc
 	${ARDUINO} core install ${CORE}:${CORE}
 	touch ${ADATA}/packages/${CORE}
 
@@ -101,7 +102,7 @@ checksrc:
 	fi
 
 .PHONY: core
-core: checksrc ${ADATA}/packages/${CORE}
+core: ${ADATA}/packages/${CORE}
 
 ${BUILD}:
 	if [ -e ${RAMFS} ]; then
@@ -111,8 +112,7 @@ ${BUILD}:
 		mkdir -p ${BUILD}
 	fi
 
-.PHONY: download-libs
-download-libs:
+.libs-downloaded: ${PROP}
 	@ ${VENV} && cat ${PROP} | yq -Y .libs | tr -d ' -' | \
 		while read LIB; do
 			NAME=$$(echo $$LIB | cut -d@ -f1)
@@ -132,8 +132,13 @@ download-libs:
 					-e 's/avr\/pgmspace/pgmspace/g' {} \;
 			fi
 		done
+	@ touch .libs-downloaded
 
-${OBJ}: checksrc download-libs ${BUILD} ${ADATA}/packages/${CORE} ${FILES}
+.PHONY: download-libs
+download-libs: .libs-downloaded
+
+${OBJ}: .libs-downloaded ${BUILD} ${ADATA}/packages/${CORE} ${FILES}
+	${MAKE} checksrc
 	time ${ARDUINO} compile --fqbn ${FQBN} \
 		$(foreach include, \
 	 		$(shell ${VENV} && cat ${PROP} | yq -Y .include | tr -d ' -'), \
