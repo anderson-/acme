@@ -223,3 +223,6 @@ ota-fs: ${BUILD}/img.bin
 		fi
 	fi
 	${PY} ${OTA} -i "$${OTAIP}" -p $${OTAPORT} -s -f ${BUILD}/img.bin
+
+serve-html:
+	cd ${SRC}/data && python3 -m http.server 8000
