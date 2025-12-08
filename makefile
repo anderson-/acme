@@ -137,7 +137,7 @@ ${BUILD}:
 .PHONY: download-libs
 download-libs: .libs-downloaded
 
-${OBJ}: .libs-downloaded ${BUILD} ${ADATA}/packages/${CORE} ${FILES}
+${OBJ}: .libs-downloaded ${BUILD} ${ADATA}/packages/${CORE} ${FILES} wifi.yaml
 	${MAKE} checksrc
 	time ${ARDUINO} compile --fqbn ${FQBN} \
 		$(foreach include, \
@@ -223,6 +223,9 @@ ota-fs: ${BUILD}/img.bin
 		fi
 	fi
 	${PY} ${OTA} -i "$${OTAIP}" -p $${OTAPORT} -s -f ${BUILD}/img.bin
+
+cat-serial:
+	python -m serial.tools.miniterm ${PORT} 115200
 
 serve-html:
 	cd ${SRC}/data && python3 -m http.server 8000
