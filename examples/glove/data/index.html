@@ -8,138 +8,132 @@
 </head>
 <body>
   <div class="app">
-    <header>
+    <header class="topbar">
       <div class="brand">
-        <span style="width: 32px; height: 32px; border-radius: 10px; background: #e5ecff; display: grid; place-items: center; color: #4e7dff;">G</span>
+        <div class="brand-mark">G</div>
         <div>
-          <div style="font-size: 18px;">Glove</div>
-          <div style="color: var(--muted); font-size: 13px;">New UI • DFA + chat bubbles</div>
+          <div class="brand-title">Glove</div>
+          <div class="brand-sub">Gesture interface</div>
         </div>
       </div>
-      <div class="inline-list">
+      <div class="top-actions">
         <div id="status-pill" class="pill status disconnected">Disconnected</div>
-        <div class="pill">Mode: <span id="mode-label">0</span></div>
-        <div class="pill">Threshold: <span id="threshold-label">1</span></div>
+        <button id="open-panel" class="btn ghost">Panel</button>
       </div>
     </header>
 
-    <nav class="tabs">
-      <button class="tab active" data-tab="chat">Chat</button>
-      <button class="tab" data-tab="io">I/O Visualization</button>
-      <button class="tab" data-tab="alphabet">Alphabet / Gestures</button>
-      <button class="tab" data-tab="debug">Full Debug</button>
-    </nav>
-
-    <section id="tab-chat" class="panel active">
-      <h3 class="section-title"><span>1</span>Chat bubbles</h3>
-      <div class="grid two">
-        <div class="card">
-          <div class="label">Conversations</div>
-          <div id="chat-window" class="chat-window"></div>
-          <div class="chat-input">
-            <input id="chat-input" type="text" placeholder="Type and press Enter" autocomplete="off" />
-            <button id="chat-send" class="btn accent">Send</button>
-          </div>
-          <small style="color: var(--muted); display:block; margin-top:6px;">Accents are removed and everything is sent in lowercase. The bubble with three dots appears while the glove is still typing.</small>
+    <div class="layout">
+      <section class="card chat-card">
+        <div class="label">Messages</div>
+        <div id="chat-window" class="chat-window"></div>
+        <div class="chat-input">
+          <input id="chat-input" type="text" placeholder="Type a message..." autocomplete="off" />
+          <button id="chat-send" class="btn accent">Send</button>
         </div>
-        <div class="card">
-          <div class="label">Quick Status</div>
-          <div class="inline-list" style="margin: 6px 0 12px;">
-            <div class="badge">Current mode: <span id="status-mode">0</span></div>
-            <div class="badge">Message buffer: <span id="status-buffer">-</span></div>
-            <div class="badge">Playback: <span id="status-playback">idle</span></div>
+      </section>
+
+      <aside id="drawer" class="drawer">
+        <div class="drawer-head">
+          <div>
+            <div class="label">Panel</div>
+            <div class="drawer-title">Settings & Debug</div>
           </div>
-          <div class="control">
-            <div class="label">Threshold</div>
-            <input id="threshold-slider" type="range" min="0" max="255" step="1" value="50">
-          </div>
-          <div class="control">
-            <div class="label">Timings (ms)</div>
-            <div class="row">
-              <input id="timing-on" type="number" min="20" value="100" style="width: 90px;">
-              <input id="timing-off" type="number" min="20" value="120" style="width: 90px;">
-              <input id="timing-gap" type="number" min="20" value="200" style="width: 90px;">
-              <button id="timing-apply" class="btn ghost">Apply</button>
+          <button id="close-panel" class="btn ghost">Close</button>
+        </div>
+
+        <div class="drawer-grid">
+          <div class="card">
+            <div class="label">Status</div>
+            <div class="inline-list" style="margin: 6px 0 10px;">
+              <div class="badge">Mode: <span id="status-mode">0</span></div>
+              <div class="badge">Buffer: <span id="status-buffer">-</span></div>
+              <div class="badge">Playback: <span id="status-playback">idle</span></div>
+            </div>
+            <div class="control">
+              <div class="label">Threshold</div>
+              <input id="threshold-slider" type="range" min="0" max="255" step="1" value="50">
+              <div class="micro">Value: <span id="threshold-label">1</span></div>
+            </div>
+            <div class="control">
+              <div class="label">Timings (ms)</div>
+              <div class="row">
+                <input id="timing-on" type="number" min="20" value="100" style="width: 70px;">
+                <input id="timing-off" type="number" min="20" value="120" style="width: 70px;">
+                <input id="timing-gap" type="number" min="20" value="200" style="width: 70px;">
+                <button id="timing-apply" class="btn ghost">Apply</button>
+              </div>
+            </div>
+            <div class="control">
+              <div class="label">LED Animation</div>
+              <div class="row">
+                <select id="anim-select" class="field">
+                  <option value="off">Off</option>
+                  <option value="solid">Solid</option>
+                  <option value="fade-in">Fade in</option>
+                  <option value="fade-out">Fade out</option>
+                  <option value="blink">Blink</option>
+                  <option value="pulse">Pulse</option>
+                  <option value="ring">Ring</option>
+                </select>
+                <input id="anim-color" type="color" value="#333333" class="field color">
+                <input id="anim-speed" type="number" min="20" value="120" class="field small">
+                <input id="anim-count" type="number" min="0" value="0" class="field tiny" title="0 = loop">
+                <button id="anim-apply" class="btn ghost">Set</button>
+              </div>
             </div>
           </div>
-          <div class="control">
-            <div class="label">RGB Ring Animation</div>
-            <div class="row">
-              <select id="anim-select" style="padding:10px;border-radius:12px;border:1px solid #e5e9f2;">
-                <option value="off">Off</option>
-                <option value="solid">Solid</option>
-                <option value="fade-in">Fade in</option>
-                <option value="fade-out">Fade out</option>
-                <option value="blink">Blink</option>
-                <option value="pulse">Pulse</option>
-                <option value="ring">Ring</option>
-              </select>
-              <input id="anim-color" type="color" value="#4e7dff" style="width:60px; height:44px; border:none; background:transparent;">
-              <input id="anim-speed" type="number" min="20" value="120" style="width:90px;">
-              <button id="anim-apply" class="btn ghost">Set</button>
+
+          <div class="card">
+            <div class="row" style="justify-content: space-between; align-items:center;">
+              <div>
+                <div class="label">Telemetry</div>
+                <div class="micro" id="stream-note">Live off</div>
+              </div>
+              <label class="switch">
+                <input id="stream-toggle" type="checkbox">
+                <span class="slider-label">Live</span>
+              </label>
+            </div>
+            <div class="grid two" style="margin-top:8px;">
+              <div>
+                <div class="label">Inputs</div>
+                <div id="input-grid" class="io-grid"></div>
+                <div class="micro" id="input-state">Waiting...</div>
+              </div>
+              <div>
+                <div class="label">Outputs</div>
+                <div id="output-grid" class="io-grid"></div>
+              </div>
+            </div>
+            <div class="label" style="margin-top:8px;">Sequence</div>
+            <div id="gesture-seq" class="steps-row"></div>
+            <div class="label" style="margin-top:6px;">Candidates</div>
+            <div id="gesture-candidates" class="inline-list"></div>
+          </div>
+
+          <div class="card">
+            <div class="label">Gestures</div>
+            <div id="alphabet-grid" class="alphabet-grid"></div>
+            <div class="row" style="margin-top:10px;">
+              <button id="download-config" class="btn ghost">Download</button>
+              <button id="upload-config" class="btn ghost">Upload</button>
+              <input id="config-file" type="file" accept="application/json" style="display:none;">
+            </div>
+            <div class="label" style="margin-top:10px;">Quick Play</div>
+            <div id="play-grid" class="alphabet-grid"></div>
+          </div>
+
+          <div class="card">
+            <div class="label">Console</div>
+            <div id="log" class="log"></div>
+            <div class="row" style="margin-top:8px;">
+              <button id="refresh-grids" class="btn ghost">Refresh</button>
+              <button id="request-alphabet" class="btn ghost">Reload</button>
             </div>
           </div>
         </div>
-      </div>
-    </section>
-
-    <section id="tab-io" class="panel">
-      <h3 class="section-title"><span>2</span>Inputs and outputs visualization</h3>
-      <div class="grid two">
-        <div class="card">
-          <div class="label">Inputs</div>
-          <div id="input-grid" class="io-grid"></div>
-          <div class="label" id="input-state">Waiting for reading...</div>
-        </div>
-        <div class="card">
-          <div class="label">Outputs</div>
-          <div id="output-grid" class="io-grid"></div>
-          <div class="label">Changes coming from the glove or via tests in the debug tab.</div>
-        </div>
-      </div>
-    </section>
-
-    <section id="tab-alphabet" class="panel">
-      <h3 class="section-title"><span>3</span>Alphabet and gestures registration</h3>
-      <div class="card">
-        <div class="label">Touch a letter to record the gesture (500 ms stability per step).</div>
-        <div id="alphabet-grid" class="alphabet-grid"></div>
-        <div class="row" style="margin-top:12px;">
-          <button id="download-config" class="btn ghost">Download config</button>
-          <button id="upload-config" class="btn ghost">Upload config</button>
-          <input id="config-file" type="file" accept="application/json" style="display:none;">
-        </div>
-      </div>
-    </section>
-
-    <section id="tab-debug" class="panel">
-      <h3 class="section-title"><span>4</span>Full debug</h3>
-      <div class="grid three">
-        <div class="card">
-          <div class="label">Letters for quick play</div>
-          <div id="play-grid" class="alphabet-grid" style="margin-bottom:10px;"></div>
-          <div class="label">Possible gestures (prefix match)</div>
-          <div id="gesture-candidates" class="inline-list"></div>
-          <div class="label" style="margin-top:10px;">Current sequence</div>
-          <div id="gesture-seq" class="steps-row"></div>
-        </div>
-        <div class="card">
-          <div class="label">Real-time inputs and outputs</div>
-          <div class="label" style="margin-top:6px;">Inputs</div>
-          <div id="input-grid-debug" class="io-grid" style="margin-bottom:10px;"></div>
-          <div class="label">Outputs</div>
-          <div id="output-grid-debug" class="io-grid"></div>
-        </div>
-        <div class="card">
-          <div class="label">Console</div>
-          <div id="log" class="log"></div>
-          <div class="row" style="margin-top:10px;">
-            <button id="refresh-grids" class="btn ghost">Refresh I/O</button>
-            <button id="request-alphabet" class="btn ghost">Reload alphabet</button>
-          </div>
-        </div>
-      </div>
-    </section>
+      </aside>
+    </div>
   </div>
 
   <div id="modal" class="modal hidden">
@@ -147,12 +141,12 @@
       <div class="row" style="justify-content: space-between;">
         <div>
           <div class="label" id="modal-title">Edit gesture</div>
-          <div style="font-weight:700;" id="modal-subtitle"></div>
+          <div style="font-weight:600;" id="modal-subtitle"></div>
         </div>
-        <button id="modal-close" class="btn ghost">Close</button>
+        <button id="modal-close" class="btn ghost">×</button>
       </div>
-      <div style="margin: 14px 0;">
-        <div class="label">Detected steps</div>
+      <div style="margin: 12px 0;">
+        <div class="label">Steps</div>
         <div id="modal-steps" class="steps-row"></div>
       </div>
       <div class="row">

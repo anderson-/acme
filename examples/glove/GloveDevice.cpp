@@ -32,7 +32,50 @@ static inline uint32_t readCapacitance(gpio_num_t pin) {
   return cycles;
 }
 
+void GloveDevice::beginRingOnly() {
+  ring.begin();
+  ringReady = true;
+  idleRingActive = false;
+  lastSequenceVisualized = 0;
+}
+
+void GloveDevice::showStatus(StatusStage stage) {
+  if (!ringReady) beginRingOnly();
+  switch (stage) {
+    case StatusStage::Boot:
+      ring.blink(CRGB(240, 140, 20), 120, 120, 2); // amber blink
+      ringResumeAt = millis() + 520;
+      break;
+    case StatusStage::WifiConnecting:
+      ring.ring(CRGB(50, 120, 255), 140); // deep blue ring
+      ringResumeAt = 0;
+      break;
+    case StatusStage::WifiConnected:
+      ring.pulse(CRGB(40, 200, 90), 160, 220, 3); // fresh green pulse
+      ringResumeAt = millis() + 1100;
+      break;
+    case StatusStage::Hotspot:
+      ring.ring(CRGB(190, 60, 200), 110); // magenta ring
+      ringResumeAt = millis() + 900;
+      break;
+    case StatusStage::Ready:
+    default:
+      showIdleRing();
+      break;
+  }
+}
+
+void GloveDevice::tickRing(uint32_t now) {
+  if (ringResumeAt != 0 && now >= ringResumeAt) {
+    ringResumeAt = 0;
+    applyBaseRingState(now);
+  }
+  ring.tick(now);
+}
+
 bool GloveDevice::begin() {
+  if (!ringReady) beginRingOnly();
+
   pinMode(PIN_MOSFET, OUTPUT);
   digitalWrite(PIN_MOSFET, LOW);
   pinMode(PIN_LED, OUTPUT);
@@ -46,8 +89,6 @@ bool GloveDevice::begin() {
   pinMode(PIN_BUTTON, INPUT_PULLUP);
 
   shiftZero();
-  ring.begin();
-  ring.fadeTo(CRGB(10, 180, 180), 400, false);
 
   if (!store.begin()) {
     log("Falha ao inicializar SPIFFS ou gestos");
@@ -58,6 +99,8 @@ bool GloveDevice::begin() {
 
   pulseOutput(0, 100);
   sendStatus("boot");
+  lastInteraction = millis();
+  showIdleRing();
   return true;
 }
 
@@ -69,13 +112,14 @@ void GloveDevice::tick() {
   else readInputs(now);
 
   player.tick(now);
-  ring.tick(now);
+  tickRing(now);
 }
 
 void GloveDevice::onMessageFromWeb(const String& text) {
   String clean = normalize(text);
   if (clean.isEmpty()) return;
-  ring.ring(CRGB(30, 200, 120), 200);
+  ring.pulse(CRGB(90, 180, 255), 180, 220, 1); // cool blue pulse for inbound
+  ringResumeAt = millis() + 520;
   playbackState = 0;
   player.setTimings(timingOn, timingOff, timingGap);
   player.queueMessage(clean, store);
@@ -83,9 +127,12 @@ void GloveDevice::onMessageFromWeb(const String& text) {
 }
 
 void GloveDevice::setMode(Mode m) {
-  mode = m;
+  uint8_t idx = (uint8_t)m;
+  if (idx >= RGB_CHAIN_LEN) idx = RGB_CHAIN_LEN - 1;
+  mode = (Mode)idx;
   sendStatus("mode");
-  pulseOutput(m, 100);
+  pulseOutput(idx, 100);
+  showModeIndicator(idx);
 }
 
 void GloveDevice::setThreshold(uint8_t t) {
@@ -101,15 +148,24 @@ void GloveDevice::setTimings(uint16_t onMs, uint16_t offMs, uint16_t gapMs) {
   sendStatus("timings");
 }
 
-void GloveDevice::setAnimation(const String& name, uint32_t rgb, uint16_t speedMs) {
+void GloveDevice::setAnimation(const String& name, uint32_t rgb, uint16_t speedMs, uint8_t count) {
   CRGB color((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
   if (name == "off") ring.off();
   else if (name == "solid") ring.solid(color);
   else if (name == "fade-in") ring.fadeTo(color, speedMs, true);
   else if (name == "fade-out") ring.fadeTo(color, speedMs, false);
-  else if (name == "blink") ring.blink(color, speedMs, speedMs);
-  else if (name == "pulse") ring.pulse(color, speedMs, speedMs);
+  else if (name == "blink") ring.blink(color, speedMs, speedMs, count);
+  else if (name == "pulse") ring.pulse(color, speedMs, speedMs, count);
   else if (name == "ring") ring.ring(color, speedMs);
+}
+
+void GloveDevice::setDebugStreaming(bool enabled) {
+  debugStreaming = enabled;
+  if (debugStreaming) {
+    publishInputs(stableMask);
+    sendOutput(lastOutputMask);
+  }
+  sendStatus("debug_stream");
 }
 
 void GloveDevice::startCapture(char symbol) {
@@ -190,13 +246,9 @@ void GloveDevice::handleButton(uint32_t now) {
   }
   if (clickCount > 0 && now > clickDeadline) {
     if (clickCount >= 2) {
-      mode = (Mode)((mode + 1) % 6);
-      pulseOutput(mode, 100);
-      sendStatus("mode");
-      //ring.ring(CRGB(180, 120, 40), 200);
-      ring.fadeTo(CRGB(255, 0, 0), 400, false);
+      Mode next = (Mode)((mode + 1) % RGB_CHAIN_LEN);
+      setMode(next);
     } else {
-      ring.fadeTo(CRGB(0, 255, 0), 400, false);
       handleSingleClick();
     }
     clickCount = 0;
@@ -205,8 +257,11 @@ void GloveDevice::handleButton(uint32_t now) {
 
 void GloveDevice::handleSingleClick() {
   if (!typingBuffer.isEmpty()) {
+    sendMessageEvent("outbound", typingBuffer);
     typingBuffer = "";
-    sendTypingEvent("cancel");
+    sendTypingEvent("done");
+    ring.blink(CRGB::Green, 120, 120, 1);
+    ringResumeAt = millis() + 400;
     return;
   }
   if (player.isActive()) {
@@ -248,6 +303,7 @@ void GloveDevice::readInputs(uint32_t now) {
     lastRawMask = mask;
     lastMaskChange = now;
   }
+  if (mask != 0) lastInteraction = now;
   publishInputs(mask);
   if (mask == 0 && lastNotifiedMask != 0) {
     sendNoInput();
@@ -274,10 +330,12 @@ void GloveDevice::readInputs(uint32_t now) {
       currentSequence.push_back((uint16_t)stableMask);
       lastStepTime = now;
       sendGestureState();
+      showGestureProgress();
       char matched = store.fullMatch(currentSequence);
       if (matched != '\0') {
         handleSymbol(matched);
         currentSequence.clear();
+        showIdleRing();
       } else {
         sendTypingEvent("typing");
       }
@@ -287,6 +345,10 @@ void GloveDevice::readInputs(uint32_t now) {
     vibrateError();
     currentSequence.clear();
     sendGestureState(true);
+    showIdleRing();
+  }
+  if (mask == 0 && currentSequence.empty() && (now - lastInteraction) > GESTURE_TIMEOUT_MS) {
+    showIdleRing();
   }
 }
 
@@ -378,6 +440,7 @@ void GloveDevice::sendStatus(const char* reason) {
   doc["playback_active"] = player.isActive();
   doc["playback_state"] = playbackState;
   doc["buffer"] = typingBuffer;
+  doc["debug_streaming"] = debugStreaming;
   push(doc);
 }
 
@@ -410,6 +473,7 @@ void GloveDevice::sendGestureState(bool expired) {
 }
 
 void GloveDevice::publishInputs(uint32_t mask) {
+  if (!debugStreaming) return;
   StaticJsonDocument<512> doc;
   doc["type"] = "input";
   doc["raw"] = mask;
@@ -421,12 +485,14 @@ void GloveDevice::publishInputs(uint32_t mask) {
 }
 
 void GloveDevice::sendNoInput() {
+  if (!debugStreaming) return;
   StaticJsonDocument<128> doc;
   doc["type"] = "input_idle";
   push(doc);
 }
 
 void GloveDevice::sendOutput(uint16_t mask) {
+  if (!debugStreaming) return;
   StaticJsonDocument<192> doc;
   doc["type"] = "output";
   doc["mask"] = mask;
@@ -458,6 +524,46 @@ void GloveDevice::log(const char* msg) {
   doc["msg"] = msg;
   push(doc);
   Serial.println(msg);
+}
+
+void GloveDevice::applyBaseRingState(uint32_t now) {
+  if (!ringReady) return;
+  if (!currentSequence.empty()) {
+    if (lastSequenceVisualized != currentSequence.size()) showGestureProgress();
+  } else if (!idleRingActive || (now - lastInteraction) > GESTURE_TIMEOUT_MS) {
+    showIdleRing();
+  }
+}
+
+void GloveDevice::showIdleRing() {
+  if (!ringReady) return;
+  ring.ring(CRGB(30, 190, 200), 160); // soft teal
+  idleRingActive = true;
+  lastSequenceVisualized = 0;
+  ringResumeAt = 0;
+}
+
+void GloveDevice::showGestureProgress() {
+  if (!ringReady) return;
+  if (currentSequence.empty()) { showIdleRing(); return; }
+  idleRingActive = false;
+  ring.customClear(CRGB::Black);
+  size_t capped = std::min(currentSequence.size(), (size_t)RGB_CHAIN_LEN);
+  for (size_t i = 0; i < capped; i++) {
+    if (i + 1 == capped) ring.setPixelBlink(i, CRGB(255, 170, 40), 180, 180, 0);
+    else ring.setPixel(i, CRGB(40, 160, 220));
+  }
+  lastSequenceVisualized = capped;
+  ringResumeAt = 0;
+}
+
+void GloveDevice::showModeIndicator(uint8_t modeIndex) {
+  if (!ringReady) return;
+  uint8_t led = modeIndex % RGB_CHAIN_LEN;
+  ring.customClear(CRGB::Black);
+  ring.setPixelBlink(led, CRGB::Red, 140, 120, 2);
+  ringResumeAt = millis() + (140 + 120) * 2 + 160;
+  idleRingActive = false;
 }
 
 String GloveDevice::normalize(const String& in) {

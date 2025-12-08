@@ -9,16 +9,39 @@ bool GloveApp::begin() {
   Serial.begin(115200);
   Serial.println("Booting Glove...");
 
+  pinMode(PIN_BUTTON, INPUT_PULLUP);
+  hotspotMode = digitalRead(PIN_BUTTON) == LOW;
+
+  device.beginRingOnly();
+  device.showStatus(GloveDevice::StatusStage::Boot);
+
   if (!SPIFFS.begin(true)) {
     Serial.println("SPIFFS mount failed");
   }
 
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-  while (WiFi.waitForConnectResult() != WL_CONNECTED) {
-    Serial.println("WiFi failed, rebooting...");
-    delay(3000);
-    ESP.restart();
+  if (hotspotMode) {
+    String apSsid = String(ssid) + "glove";
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP(apSsid.c_str(), password);
+    device.showStatus(GloveDevice::StatusStage::Hotspot);
+    Serial.print("Hotspot: ");
+    Serial.print(apSsid);
+    Serial.print(" | pass: ");
+    Serial.println(password);
+
+    // Start DNS server for captive portal
+    dnsServer.start(53, "*", WiFi.softAPIP());
+    Serial.print("Captive portal ready at: ");
+    Serial.println(WiFi.softAPIP());
+  } else {
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(ssid, password);
+    device.showStatus(GloveDevice::StatusStage::WifiConnecting);
+    while (WiFi.status() != WL_CONNECTED) {
+      device.tickRing(millis());
+      delay(60);
+    }
+    device.showStatus(GloveDevice::StatusStage::WifiConnected);
   }
 
   ArduinoOTA.onStart([&]() {
@@ -30,6 +53,7 @@ bool GloveApp::begin() {
   ArduinoOTA.begin();
 
   ws.begin();
+  ws.enableHeartbeat(5000, 3000, 2);  // ping every 5s, timeout 3s, 2 retries
   ws.onEvent([&](uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
     onWsEvent(num, type, payload, length);
   });
@@ -40,6 +64,7 @@ bool GloveApp::begin() {
     ws.broadcastTXT(copy);
   });
   device.begin();
+  device.showStatus(GloveDevice::StatusStage::Ready);
 
   Serial.print("WiFi ready: ");
   Serial.println(WiFi.localIP());
@@ -50,6 +75,11 @@ bool GloveApp::begin() {
 void GloveApp::loop() {
   ArduinoOTA.handle();
   if (otaInProgress) return;
+
+  if (hotspotMode) {
+    dnsServer.processNextRequest();
+  }
+
   ws.loop();
   device.tick();
   WiFiClient client = httpServer.available();
@@ -69,6 +99,32 @@ void GloveApp::httpServeClient(WiFiClient client) {
     int end = request.indexOf(' ', start);
     path = request.substring(start, end);
   }
+
+  // Handle captive portal detection endpoints
+  if (hotspotMode) {
+    if (path == "/" || path == "/index.html") {
+      // Main page - serve normally
+    } else if (path == "/generate_204" || path == "/connecttest.txt" ||
+               path == "/hotspot-detect.html" || path == "/library/test/success.html" ||
+               path == "/ncsi.txt") {
+      // Android/iOS captive portal detection - redirect to main page
+      client.println("HTTP/1.1 302 Found");
+      client.println("Location: /");
+      client.println("Connection: close");
+      client.println();
+      client.stop();
+      return;
+    } else {
+      // All other requests in hotspot mode - redirect to main page
+      client.println("HTTP/1.1 302 Found");
+      client.println("Location: /");
+      client.println("Connection: close");
+      client.println();
+      client.stop();
+      return;
+    }
+  }
+
   if (path == "/") path = "/index.html";
 
   String contentType = "text/plain";
@@ -126,7 +182,8 @@ void GloveApp::handleCommand(uint8_t num, const char* cmd, JsonVariant data) {
     String name = data["name"] | "off";
     uint32_t color = data["color"] | 0x22C1B0;
     uint16_t speed = data["speed"] | 120;
-    device.setAnimation(name, color, speed);
+    uint8_t count = data["count"] | 0;
+    device.setAnimation(name, color, speed, count);
   } else if (strcmp(cmd, "play_letter") == 0) {
     String s = data["symbol"] | "";
     if (s.length() > 0) device.playLetter(s[0]);
@@ -145,11 +202,20 @@ void GloveApp::handleCommand(uint8_t num, const char* cmd, JsonVariant data) {
   } else if (strcmp(cmd, "set_output") == 0) {
     uint16_t mask = data["mask"] | 0;
     device.writeOutputs(mask);
+  } else if (strcmp(cmd, "set_debug_streaming") == 0) {
+    bool enabled = data["enabled"] | false;
+    device.setDebugStreaming(enabled);
   } else if (strcmp(cmd, "upload_config") == 0) {
     JsonArray arr = data["gestures"].as<JsonArray>();
     bool ok = device.importGestures(arr);
     ack["ok"] = ok;
     if (!ok) ack["error"] = "invalid_gestures";
+  } else if (strcmp(cmd, "ping") == 0) {
+    StaticJsonDocument<128> pong;
+    pong["type"] = "pong";
+    pong["ts"] = (uint32_t)millis();
+    sendJson(num, pong);
+    return;
   } else {
     ack["ok"] = false;
     ack["error"] = "unknown_cmd";

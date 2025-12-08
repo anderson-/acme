@@ -7,6 +7,7 @@
 #include <WebSocketsServer.h>
 #include <SPIFFS.h>
 #include <ArduinoJson.h>
+#include <DNSServer.h>
 
 #include "GloveDevice.h"
 
@@ -25,5 +26,7 @@ private:
   GloveDevice device;
   WiFiServer httpServer{80};
   WebSocketsServer ws{81};
+  DNSServer dnsServer;
   volatile bool otaInProgress = false;
+  bool hotspotMode = false;
 };

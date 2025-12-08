@@ -227,5 +227,8 @@ ota-fs: ${BUILD}/img.bin
 cat-serial:
 	python -m serial.tools.miniterm ${PORT} 115200
 
+reset:
+	python3 -c "import serial, time; ser = serial.Serial('${PORT}', 115200); ser.setDTR(False); time.sleep(0.1); ser.setDTR(True); time.sleep(0.5); ser.close()"
+
 serve-html:
 	cd ${SRC}/data && python3 -m http.server 8000
