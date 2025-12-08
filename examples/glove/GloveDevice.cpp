@@ -193,8 +193,10 @@ void GloveDevice::handleButton(uint32_t now) {
       mode = (Mode)((mode + 1) % 6);
       pulseOutput(mode, 100);
       sendStatus("mode");
-      ring.ring(CRGB(180, 120, 40), 200);
+      //ring.ring(CRGB(180, 120, 40), 200);
+      ring.fadeTo(CRGB(255, 0, 0), 400, false);
     } else {
+      ring.fadeTo(CRGB(0, 255, 0), 400, false);
       handleSingleClick();
     }
     clickCount = 0;

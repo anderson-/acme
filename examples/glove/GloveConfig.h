@@ -13,7 +13,7 @@ static const uint8_t PIN_DATA = 23;
 static const uint8_t PIN_CLOCK = 18;
 static const uint8_t PIN_LED = 5;
 static const uint8_t PIN_MOSFET = 33;
-static const uint8_t PIN_BUTTON = 39;
+static const uint8_t PIN_BUTTON = 21;
 static const uint8_t PIN_RGB = 32;
 static const uint8_t RGB_CHAIN_LEN = 5;
 
