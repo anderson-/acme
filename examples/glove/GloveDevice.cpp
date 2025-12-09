@@ -452,9 +452,8 @@ uint8_t GloveDevice::readAndWrite(uint32_t& bits, uint8_t index) {
 }
 
 void GloveDevice::handleSymbol(char symbol) {
-  char s = (symbol == 'W') ? symbol : (char)tolower(symbol);
-  if (s == 'W') {
-    pushSymbol(s);
+  if (symbol == 'W') {
+    pushSymbol(symbol);
     if (!typingBuffer.isEmpty()) {
       sendMessageEvent("outbound", typingBuffer);
       typingBuffer = "";
@@ -462,8 +461,8 @@ void GloveDevice::handleSymbol(char symbol) {
     }
     return;
   }
-  pushSymbol(s);
-  typingBuffer += s;
+  pushSymbol(symbol);
+  typingBuffer += symbol;
   sendTypingEvent("typing");
 }
 

@@ -876,7 +876,7 @@ function showDetectedLetter(symbol) {
   // Create floating letter element
   const floatingLetter = document.createElement('div');
   floatingLetter.className = 'detected-letter';
-  floatingLetter.textContent = symbol.toUpperCase();
+  floatingLetter.textContent = symbol; // Preserve original case
 
   // Position at circle center with small random offset for overlap handling
   const randomOffset = (Math.random() - 0.5) * 10; // ±5px
