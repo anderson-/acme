@@ -331,6 +331,58 @@ input[type="range"] { width: 100%; }
   border: 1px solid var(--border);
 }
 
+.hand-card {
+  max-width: 700px;
+  margin: 0 auto 16px;
+}
+
+#hand-panel {
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+}
+
+#hand-panel svg {
+  max-width: 100%;
+  height: auto;
+  max-height: 400px;
+}
+
+#hand-panel circle {
+  cursor: pointer;
+  transition: fill 0.15s ease;
+}
+
+#hand-panel circle:hover {
+  opacity: 0.8;
+}
+
+#hand-panel {
+  position: relative;
+}
+
+.detected-letter {
+  position: absolute;
+  font-size: 18px;
+  font-weight: 700;
+  color: #10b981;
+  pointer-events: none;
+  z-index: 10;
+  animation: floatUp 2s ease-out forwards;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+@keyframes floatUp {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-40px) scale(0.8);
+  }
+}
+
 @media (max-width: 960px) {
   .topbar { position: static; }
   .drawer { top: auto; bottom: 8px; right: 8px; max-height: calc(100vh - 60px); }

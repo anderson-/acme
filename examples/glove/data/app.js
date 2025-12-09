@@ -66,6 +66,7 @@ const streamToggle = document.getElementById('stream-toggle');
 const streamNote = document.getElementById('stream-note');
 const chatInputField = document.getElementById('chat-input');
 const inputState = document.getElementById('input-state');
+const handPanel = document.getElementById('hand-panel');
 
 function initGrids() {
   const grids = [inputGrid, outputGrid, inputGridDebug, outputGridDebug].filter((grid, idx, arr) => grid && arr.indexOf(grid) === idx);
@@ -498,6 +499,7 @@ function handleMessage(msg) {
       break;
     case 'symbol':
       pushLog(`Symbol detected: ${msg.value}`);
+      showDetectedLetter(msg.value);
       break;
     case 'input':
       state.inputs = msg.pins || [];
@@ -505,6 +507,7 @@ function handleMessage(msg) {
       updateIOGrid(inputGrid, state.inputs);
       updateIOGrid(inputGridDebug, state.inputs);
       updateCapacitanceBars();
+      updateHandPanelColors();
       if (inputState) inputState.textContent = `Active inputs: ${state.inputs.join(', ') || 'none'}`;
       // Process input for JS-based capture
       processInputForCapture(state.inputs);
@@ -515,6 +518,7 @@ function handleMessage(msg) {
       updateIOGrid(inputGrid, []);
       updateIOGrid(inputGridDebug, []);
       updateCapacitanceBars();
+      updateHandPanelColors();
       if (inputState) inputState.textContent = 'No input detected';
       // Process idle input for JS-based capture
       processInputForCapture([]);
@@ -523,11 +527,14 @@ function handleMessage(msg) {
       state.outputs = msg.pins || [];
       updateIOGrid(outputGrid, msg.pins || []);
       updateIOGrid(outputGridDebug, msg.pins || []);
+      updateHandPanelColors();
       break;
     case 'alphabet':
       state.gestures = msg.gestures || [];
       state.alphabet = state.gestures.map(g => g.symbol);
       renderAlphabet();
+      updateHandPanelLabels();
+      updateHandPanelColors();
       break;
     case 'gesture_state':
       renderGestureState(msg);
@@ -696,6 +703,198 @@ if (configFile) {
   });
 }
 
+// Hand panel: SVG id (1-16) maps to alphabet index (0-15)
+// The alphabet is loaded dynamically, so we get the symbol from state.alphabet
+// Text shows the bit position of the mask for that symbol's IO
+let handSvgDoc = null;
+
+function initHandPanel() {
+  fetch('hand.svg')
+    .then(res => res.text())
+    .then(svgText => {
+      handPanel.innerHTML = svgText;
+      handSvgDoc = handPanel.querySelector('svg');
+      setupHandPanelInteractions();
+      updateHandPanelLabels();
+    })
+    .catch(err => console.error('Failed to load hand.svg:', err));
+}
+
+function getIoBitForId(id) {
+  let symbol;
+
+  // Special case: id 16 always maps to 'w'
+  if (id === 16) {
+    symbol = 'w';
+  } else {
+    // id is 1-16, alphabet index is id-1
+    const alphabetIdx = id - 1;
+    symbol = state.alphabet[alphabetIdx];
+  }
+
+  if (!symbol) return null;
+
+  // Find the gesture for this symbol to get its IO bit
+  const gesture = state.gestures.find(g => g.symbol === symbol);
+  if (!gesture || !gesture.steps || gesture.steps.length === 0) return null;
+
+  // Get the first step's mask (used for positioning double tap letters)
+  const firstMask = typeof gesture.steps[0] === 'object' ? gesture.steps[0].mask : gesture.steps[0];
+  if (firstMask === 0) return null;
+
+  // Find the bit position (log2 of the lowest set bit)
+  for (let bit = 0; bit < 16; bit++) {
+    if (firstMask & (1 << bit)) return bit;
+  }
+  return null;
+}
+
+function setupHandPanelInteractions() {
+  if (!handSvgDoc) return;
+  for (let id = 1; id <= 16; id++) {
+    const circle = handSvgDoc.querySelector(`#circle-${id}`);
+    if (circle) {
+      circle.addEventListener('click', () => {
+        const ioBit = getIoBitForId(id);
+        if (ioBit === null) {
+          pushLog(`Hand panel: no IO mapping for id ${id}`);
+          return;
+        }
+        // Activate motor for 50ms
+        const mask = 1 << ioBit;
+        sendCmd('set_output', { mask });
+        pushLog(`Hand panel: activated motor bit ${ioBit} (mask: ${mask}) for 50ms`);
+        // Auto-deactivate after 50ms
+        setTimeout(() => {
+          sendCmd('set_output', { mask: 0 });
+        }, 50);
+      });
+    }
+  }
+}
+
+function updateHandPanelLabels() {
+  if (!handSvgDoc) return;
+  for (let id = 1; id <= 16; id++) {
+    const text = handSvgDoc.querySelector(`#text-${id}`);
+    if (text) {
+      const ioBit = getIoBitForId(id);
+      text.textContent = ioBit !== null ? ioBit.toString() : '-';
+    }
+  }
+}
+
+function updateHandPanelColors() {
+  if (!handSvgDoc) return;
+  const threshold = state.threshold;
+
+  for (let id = 1; id <= 16; id++) {
+    const circle = handSvgDoc.querySelector(`#circle-${id}`);
+    if (!circle) continue;
+
+    const ioBit = getIoBitForId(id);
+    if (ioBit === null) {
+      circle.setAttribute('fill', '#000000');
+      continue;
+    }
+
+    const capacitance = state.capacitance[ioBit] || 0;
+    const isInput = state.inputs.includes(ioBit);
+    const isOutput = state.outputs.includes(ioBit);
+
+    if (isOutput) {
+      // Output active: red
+      circle.setAttribute('fill', '#ef4444');
+    } else if (isInput) {
+      // Input active: green
+      circle.setAttribute('fill', '#22c55e');
+    } else if (capacitance > 0) {
+      // Has capacitance but not above threshold: gradient based on value
+      const intensity = Math.min(1, capacitance / threshold);
+      const green = Math.round(200 * intensity);
+      circle.setAttribute('fill', `rgb(0, ${green}, 0)`);
+    } else {
+      // Inactive: black
+      circle.setAttribute('fill', '#000000');
+    }
+  }
+}
+
+function showDetectedLetter(symbol) {
+  if (!handSvgDoc || !symbol) return;
+
+  // Check if hand panel is visible (drawer is open)
+  const drawer = document.getElementById('drawer');
+  if (!drawer || !drawer.classList.contains('open')) return;
+
+  // Find which id corresponds to this symbol by matching IO bits
+  let targetId = null;
+
+  // Get the IO bit for the detected symbol
+  const gesture = state.gestures.find(g => g.symbol === symbol);
+  if (!gesture || !gesture.steps || gesture.steps.length === 0) return;
+
+  const firstMask = typeof gesture.steps[0] === 'object' ? gesture.steps[0].mask : gesture.steps[0];
+  if (firstMask === 0) return;
+
+  // Find the bit position for this symbol
+  let detectedBit = null;
+  for (let bit = 0; bit < 16; bit++) {
+    if (firstMask & (1 << bit)) {
+      detectedBit = bit;
+      break;
+    }
+  }
+  if (detectedBit === null) return;
+
+  // Special case: 'w' always maps to ID 16
+  if (symbol === 'w') {
+    targetId = 16;
+  } else {
+    // Find which ID has the same IO bit as the detected symbol
+    for (let id = 1; id <= 15; id++) {
+      const idBit = getIoBitForId(id);
+      if (idBit === detectedBit) {
+        targetId = id;
+        break;
+      }
+    }
+  }
+
+  if (targetId === null) return;
+
+  const circle = handSvgDoc.querySelector(`#circle-${targetId}`);
+  if (!circle) return;
+
+  // Get circle position relative to hand panel
+  const circleRect = circle.getBoundingClientRect();
+  const handPanelRect = handPanel.getBoundingClientRect();
+
+  const relativeX = circleRect.left - handPanelRect.left + circleRect.width / 2;
+  const relativeY = circleRect.top - handPanelRect.top - circleRect.height;
+
+  // Create floating letter element
+  const floatingLetter = document.createElement('div');
+  floatingLetter.className = 'detected-letter';
+  floatingLetter.textContent = symbol.toUpperCase();
+
+  // Position at circle center with small random offset for overlap handling
+  const randomOffset = (Math.random() - 0.5) * 10; // ±5px
+  floatingLetter.style.left = `${relativeX + randomOffset}px`;
+  floatingLetter.style.top = `${relativeY}px`;
+  floatingLetter.style.transform = 'translate(-50%, -50%)';
+
+  handPanel.appendChild(floatingLetter);
+
+  // Remove element after animation completes
+  setTimeout(() => {
+    if (floatingLetter.parentNode) {
+      floatingLetter.parentNode.removeChild(floatingLetter);
+    }
+  }, 2000);
+}
+
 initGrids();
+initHandPanel();
 renderAlphabet();
 connectWS();
