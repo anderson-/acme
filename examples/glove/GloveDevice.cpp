@@ -171,12 +171,39 @@ void GloveDevice::setDebugStreaming(bool enabled) {
 void GloveDevice::sendAlphabet() {
   DynamicJsonDocument doc(6144);
   doc["type"] = "alphabet";
-  store.asJson(doc);
+
+  // Create gestures array for UI compatibility
+  JsonArray gesturesArray = doc.createNestedArray("gestures");
+
+  // Get the simplified format from store
+  DynamicJsonDocument simplifiedDoc(4096);
+  store.asJson(simplifiedDoc);
+
+  // Convert simplified format to array format for UI
+  JsonObject simplifiedObj = simplifiedDoc.as<JsonObject>();
+  for (JsonPair kv : simplifiedObj) {
+    JsonObject gestureObj = gesturesArray.createNestedObject();
+    gestureObj["symbol"] = kv.key().c_str();
+    JsonArray stepsArray = gestureObj.createNestedArray("steps");
+
+    JsonArray maskArray = kv.value().as<JsonArray>();
+    for (JsonVariant maskValue : maskArray) {
+      JsonObject stepObj = stepsArray.createNestedObject();
+      stepObj["mask"] = maskValue;
+    }
+  }
+
   push(doc);
 }
 
-bool GloveDevice::importGestures(JsonArray arr) {
-  bool ok = store.importGestures(arr);
+bool GloveDevice::importGestures(JsonObject obj) {
+  bool ok = store.importGestures(obj);
+  if (ok) sendAlphabet();
+  return ok;
+}
+
+bool GloveDevice::resetToDefaults() {
+  bool ok = store.resetToDefaults();
   if (ok) sendAlphabet();
   return ok;
 }
@@ -412,6 +439,7 @@ void GloveDevice::sendStatus(const char* reason) {
   doc["playback_state"] = playbackState;
   doc["buffer"] = typingBuffer;
   doc["debug_streaming"] = debugStreaming;
+  doc["free_memory"] = ESP.getFreeHeap();
   push(doc);
 }
 

@@ -199,10 +199,14 @@ void GloveApp::handleCommand(uint8_t num, const char* cmd, JsonVariant data) {
     bool enabled = data["enabled"] | false;
     device.setDebugStreaming(enabled);
   } else if (strcmp(cmd, "upload_config") == 0) {
-    JsonArray arr = data["gestures"].as<JsonArray>();
-    bool ok = device.importGestures(arr);
+    JsonObject obj = data.as<JsonObject>();
+    bool ok = device.importGestures(obj);
     ack["ok"] = ok;
     if (!ok) ack["error"] = "invalid_gestures";
+  } else if (strcmp(cmd, "reset_gestures") == 0) {
+    bool ok = device.resetToDefaults();
+    ack["ok"] = ok;
+    if (!ok) ack["error"] = "reset_failed";
   } else if (strcmp(cmd, "ping") == 0) {
     StaticJsonDocument<128> pong;
     pong["type"] = "pong";

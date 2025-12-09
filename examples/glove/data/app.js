@@ -23,6 +23,7 @@ const state = {
   playback: 'idle',
   capture: { active: false, symbol: null, steps: [], lastMask: 0, stableMask: 0, lastChange: 0 },
   sequential: { active: false, currentIndex: 0, letters: [] },
+  freeMemory: 0,
 };
 let heartbeat;
 let lastPong = 0;
@@ -33,6 +34,7 @@ const thresholdLabel = document.getElementById('threshold-label');
 const statusMode = document.getElementById('status-mode');
 const statusBuffer = document.getElementById('status-buffer');
 const statusPlayback = document.getElementById('status-playback');
+const statusMemory = document.getElementById('status-memory');
 const inputGrid = document.getElementById('input-grid');
 const outputGrid = document.getElementById('output-grid');
 const inputGridDebug = document.getElementById('input-grid-debug');
@@ -283,16 +285,25 @@ function skipSequential() {
 }
 
 function saveGestureToDevice(symbol, steps) {
-  // Update local gestures array
+  // Update local gestures array to match new format
   const existingIdx = state.gestures.findIndex(g => g.symbol === symbol);
-  const gestureObj = { symbol, steps: steps.map(mask => ({ mask })) };
+  const gestureObj = { symbol, steps };
   if (existingIdx >= 0) {
     state.gestures[existingIdx] = gestureObj;
   } else {
     state.gestures.push(gestureObj);
   }
-  // Send updated gestures to device
-  sendCmd('upload_config', { gestures: state.gestures });
+
+  // Convert to new simplified format for device
+  const simplifiedGestures = {};
+  state.gestures.forEach(g => {
+    simplifiedGestures[g.symbol] = g.steps.map(step =>
+      typeof step === 'object' ? step.mask : step
+    );
+  });
+
+  // Send updated gestures to device in new format
+  sendCmd('upload_config', simplifiedGestures);
 }
 
 function moveToNextLetter() {
@@ -461,6 +472,7 @@ function handleMessage(msg) {
       state.mode = msg.mode ?? state.mode;
       state.threshold = msg.threshold ?? state.threshold;
       state.debugStreaming = msg.debug_streaming ?? state.debugStreaming;
+      state.freeMemory = msg.free_memory ?? state.freeMemory;
       if (statusMode) statusMode.textContent = state.mode;
       thresholdLabel.textContent = state.threshold;
       if (streamToggle) streamToggle.checked = !!state.debugStreaming;
@@ -468,6 +480,7 @@ function handleMessage(msg) {
       if (!state.debugStreaming && inputState) inputState.textContent = 'Live off';
       statusPlayback.textContent = msg.playback_active ? 'playing' : 'idle';
       statusBuffer.textContent = msg.buffer || '-';
+      if (statusMemory) statusMemory.textContent = state.freeMemory || '-';
       break;
     case 'message':
       appendChat({ from: msg.direction === 'inbound' ? 'me' : 'device', text: msg.text });
@@ -630,8 +643,14 @@ if (reqAlphabet) reqAlphabet.onclick = () => sendCmd('request_alphabet');
 const downloadBtn = document.getElementById('download-config');
 if (downloadBtn) {
   downloadBtn.onclick = () => {
-    const payload = { gestures: state.gestures || [] };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    // Convert to new simplified format for download
+    const simplifiedGestures = {};
+    (state.gestures || []).forEach(g => {
+      simplifiedGestures[g.symbol] = g.steps.map(step =>
+        typeof step === 'object' ? step.mask : step
+      );
+    });
+    const blob = new Blob([JSON.stringify(simplifiedGestures, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -644,6 +663,8 @@ const uploadBtn = document.getElementById('upload-config');
 if (uploadBtn) uploadBtn.onclick = () => document.getElementById('config-file').click();
 const sequentialBtn = document.getElementById('sequential-config');
 if (sequentialBtn) sequentialBtn.onclick = () => openSequential();
+const resetBtn = document.getElementById('reset-gestures');
+if (resetBtn) resetBtn.onclick = () => sendCmd('reset_gestures');
 const configFile = document.getElementById('config-file');
 if (configFile) {
   configFile.addEventListener('change', (e) => {
@@ -653,7 +674,20 @@ if (configFile) {
     reader.onload = () => {
       try {
         const data = JSON.parse(reader.result);
-        if (data.gestures) sendCmd('upload_config', { gestures: data.gestures });
+        // Handle new simplified format directly
+        if (Object.keys(data).length > 0 && !data.gestures) {
+          sendCmd('upload_config', data);
+        }
+        // Handle old format for backward compatibility
+        else if (data.gestures) {
+          const simplifiedGestures = {};
+          data.gestures.forEach(g => {
+            simplifiedGestures[g.symbol] = g.steps.map(step =>
+              typeof step === 'object' ? step.mask : step
+            );
+          });
+          sendCmd('upload_config', simplifiedGestures);
+        }
       } catch (err) {
         alert('Invalid file');
       }

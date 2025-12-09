@@ -27,7 +27,8 @@ public:
   void asJson(JsonDocument& doc) const;
   std::vector<char> prefixMatches(const std::vector<uint16_t>& sequence) const;
   char fullMatch(const std::vector<uint16_t>& sequence) const;
-  bool importGestures(JsonArray arr);
+  bool importGestures(JsonObject obj);
+  bool resetToDefaults();
 
 private:
   void buildDefaults();

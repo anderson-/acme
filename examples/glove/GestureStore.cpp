@@ -20,18 +20,24 @@ bool GestureStore::load() {
   }
   f.close();
   gestures.clear();
-  for (JsonVariant g : doc["gestures"].as<JsonArray>()) {
+  for (JsonPair kv : doc.as<JsonObject>()) {
+    String symbol = kv.key().c_str();
+    if (symbol.length() != 1) continue;
+
+    JsonArray maskArray = kv.value().as<JsonArray>();
+    if (maskArray.isNull()) continue;
+
     Gesture gesture;
-    const char* sym = g["symbol"];
-    if (!sym || strlen(sym) == 0) continue;
-    gesture.symbol = sym[0];
-    for (JsonVariant step : g["steps"].as<JsonArray>()) {
+    gesture.symbol = symbol[0];
+
+    for (JsonVariant maskValue : maskArray) {
       GestureStep s;
-      s.mask = step["mask"] | 0;
-      s.holdMs = step["hold"] | DEFAULT_STEP_ON_MS;
-      s.pauseMs = step["pause"] | DEFAULT_STEP_OFF_MS;
+      s.mask = maskValue | 0;
+      s.holdMs = DEFAULT_STEP_ON_MS;
+      s.pauseMs = DEFAULT_STEP_OFF_MS;
       gesture.steps.push_back(s);
     }
+
     if (!gesture.steps.empty()) gestures.push_back(gesture);
   }
   if (gestures.empty()) {
@@ -43,16 +49,11 @@ bool GestureStore::load() {
 
 bool GestureStore::save() {
   DynamicJsonDocument doc(6144);
-  JsonArray arr = doc.createNestedArray("gestures");
+  JsonObject root = doc.to<JsonObject>();
   for (const auto& g : gestures) {
-    JsonObject jg = arr.createNestedObject();
-    jg["symbol"] = String(g.symbol);
-    JsonArray steps = jg.createNestedArray("steps");
+    JsonArray maskArray = root.createNestedArray(String(g.symbol));
     for (const auto& s : g.steps) {
-      JsonObject js = steps.createNestedObject();
-      js["mask"] = s.mask;
-      js["hold"] = s.holdMs;
-      js["pause"] = s.pauseMs;
+      maskArray.add(s.mask);
     }
   }
   File f = SPIFFS.open(kFile, "w");
@@ -88,16 +89,11 @@ std::vector<char> GestureStore::symbols() const {
 }
 
 void GestureStore::asJson(JsonDocument& doc) const {
-  JsonArray arr = doc.createNestedArray("gestures");
+  JsonObject root = doc.to<JsonObject>();
   for (const auto& g : gestures) {
-    JsonObject jg = arr.createNestedObject();
-    jg["symbol"] = String(g.symbol);
-    JsonArray steps = jg.createNestedArray("steps");
+    JsonArray maskArray = root.createNestedArray(String(g.symbol));
     for (const auto& s : g.steps) {
-      JsonObject js = steps.createNestedObject();
-      js["mask"] = s.mask;
-      js["hold"] = s.holdMs;
-      js["pause"] = s.pauseMs;
+      maskArray.add(s.mask);
     }
   }
 }
@@ -127,22 +123,33 @@ char GestureStore::fullMatch(const std::vector<uint16_t>& sequence) const {
   return '\0';
 }
 
-bool GestureStore::importGestures(JsonArray arr) {
-  if (!arr) return false;
-  for (JsonVariant gv : arr) {
-    const char* sym = gv["symbol"];
-    if (!sym || strlen(sym) == 0) continue;
+bool GestureStore::importGestures(JsonObject obj) {
+  if (!obj) return false;
+  for (JsonPair kv : obj) {
+    String symbol = kv.key().c_str();
+    if (symbol.length() != 1) continue;
+
+    JsonArray maskArray = kv.value().as<JsonArray>();
+    if (!maskArray) continue;
+
     std::vector<GestureStep> steps;
-    for (JsonVariant st : gv["steps"].as<JsonArray>()) {
+    for (JsonVariant maskValue : maskArray) {
       GestureStep s;
-      s.mask = st["mask"] | 0;
-      s.holdMs = st["hold"] | DEFAULT_STEP_ON_MS;
-      s.pauseMs = st["pause"] | DEFAULT_STEP_OFF_MS;
+      s.mask = maskValue | 0;
+      s.holdMs = DEFAULT_STEP_ON_MS;
+      s.pauseMs = DEFAULT_STEP_OFF_MS;
       steps.push_back(s);
     }
-    if (!steps.empty()) updateGesture(sym[0], steps);
+
+    if (!steps.empty()) updateGesture(symbol[0], steps);
   }
   return true;
+}
+
+bool GestureStore::resetToDefaults() {
+  gestures.clear();
+  buildDefaults();
+  return save();
 }
 
 void GestureStore::buildDefaults() {

@@ -36,7 +36,8 @@ public:
   void sendAlphabet();
   void playLetter(char symbol);
   void requestState();
-  bool importGestures(JsonArray arr);
+  bool importGestures(JsonObject obj);
+  bool resetToDefaults();
   void writeOutputs(uint16_t mask);
   void setDebugStreaming(bool enabled);
   bool debugStreamingEnabled() const { return debugStreaming; }
