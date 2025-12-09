@@ -10,21 +10,20 @@
   <div class="app">
     <header class="topbar">
       <div class="brand">
-        <div class="brand-mark">G</div>
-        <div>
-          <div class="brand-title">Glove</div>
-          <div class="brand-sub">Gesture interface</div>
-        </div>
+        <div class="brand-title">Glove chat</div>
+        <div id="status-pill" class="status-dot disconnected">Disconnected</div>
       </div>
       <div class="top-actions">
-        <div id="status-pill" class="pill status disconnected">Disconnected</div>
-        <button id="open-panel" class="btn ghost">Panel</button>
+        <button id="theme-toggle" class="btn ghost" type="button">Dark</button>
+        <button id="open-panel" class="btn ghost" type="button" aria-expanded="false">Debug</button>
       </div>
     </header>
 
-    <div class="layout">
+    <div class="layout" id="layout">
       <section class="card chat-card">
-        <div class="label">Messages</div>
+        <div class="chat-head">
+          <div class="label">Chat</div>
+        </div>
         <div id="chat-window" class="chat-window"></div>
         <div class="chat-input">
           <input id="chat-input" type="text" placeholder="Type a message..." autocomplete="off" />
@@ -32,13 +31,10 @@
         </div>
       </section>
 
-      <aside id="drawer" class="drawer">
+      <aside id="drawer" class="drawer card">
         <div class="drawer-head">
-          <div>
-            <div class="label">Panel</div>
-            <div class="drawer-title">Settings & Debug</div>
-          </div>
-          <button id="close-panel" class="btn ghost">Close</button>
+          <div class="label">Debug & Settings</div>
+          <button id="close-panel" class="btn ghost" type="button">Close</button>
         </div>
 
         <div class="drawer-grid">
@@ -57,7 +53,7 @@
             </div>
             <div class="control">
               <div class="label">Threshold</div>
-              <input id="threshold-slider" type="range" min="0" max="255" step="1" value="50">
+              <input id="threshold-slider" type="range" min="0" max="50" step="1" value="1">
               <div class="micro">Value: <span id="threshold-label">1</span></div>
             </div>
             <div class="control">

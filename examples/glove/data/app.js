@@ -31,6 +31,7 @@ let lastPong = 0;
 const chatWindow = document.getElementById('chat-window');
 const statusPill = document.getElementById('status-pill');
 const thresholdLabel = document.getElementById('threshold-label');
+const thresholdSlider = document.getElementById('threshold-slider');
 const statusMode = document.getElementById('status-mode');
 const statusBuffer = document.getElementById('status-buffer');
 const statusPlayback = document.getElementById('status-playback');
@@ -67,6 +68,29 @@ const streamNote = document.getElementById('stream-note');
 const chatInputField = document.getElementById('chat-input');
 const inputState = document.getElementById('input-state');
 const handPanel = document.getElementById('hand-panel');
+const layout = document.getElementById('layout');
+const themeToggle = document.getElementById('theme-toggle');
+const bodyEl = document.body;
+const baseCircleColors = { light: '#000000', dark: '#6b7280' };
+let handSvgDoc = null;
+
+function setTheme(mode = 'light') {
+  const isDark = mode === 'dark';
+  bodyEl.classList.toggle('theme-dark', isDark);
+  if (themeToggle) themeToggle.textContent = isDark ? 'Light' : 'Dark';
+  localStorage.setItem('glove-theme', mode);
+  updateHandPanelColors();
+}
+
+const savedTheme = localStorage.getItem('glove-theme');
+setTheme(savedTheme === 'dark' ? 'dark' : 'light');
+
+if (themeToggle) {
+  themeToggle.onclick = () => {
+    const next = bodyEl.classList.contains('theme-dark') ? 'light' : 'dark';
+    setTheme(next);
+  };
+}
 
 function initGrids() {
   const grids = [inputGrid, outputGrid, inputGridDebug, outputGridDebug].filter((grid, idx, arr) => grid && arr.indexOf(grid) === idx);
@@ -115,7 +139,7 @@ function appendChat({ from, text, typing }) {
     bubble.className = `bubble ${from}`;
     bubble.dataset.from = from;
     bubble.id = 'typing-bubble';
-    bubble.innerHTML = `<div class="typing-dots"><span></span><span></span><span></span></div>`;
+    bubble.innerHTML = `<div class="typing-indicator"></div>`;
     chatWindow.appendChild(bubble);
   } else {
     const bubble = document.createElement('div');
@@ -476,6 +500,7 @@ function handleMessage(msg) {
       state.freeMemory = msg.free_memory ?? state.freeMemory;
       if (statusMode) statusMode.textContent = state.mode;
       thresholdLabel.textContent = state.threshold;
+      if (thresholdSlider) thresholdSlider.value = state.threshold;
       if (streamToggle) streamToggle.checked = !!state.debugStreaming;
       if (streamNote) streamNote.textContent = state.debugStreaming ? 'Live on' : 'Live off';
       if (!state.debugStreaming && inputState) inputState.textContent = 'Live off';
@@ -575,8 +600,15 @@ function pushLog(text) {
 }
 
 // UI bindings
-if (openPanel && drawer) openPanel.onclick = () => drawer.classList.add('open');
-if (closePanel && drawer) closePanel.onclick = () => drawer.classList.remove('open');
+function setPanelOpen(isOpen) {
+  if (!drawer) return;
+  drawer.classList.toggle('open', isOpen);
+  if (layout) layout.classList.toggle('panel-open', isOpen);
+  if (openPanel) openPanel.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+}
+
+if (openPanel && drawer) openPanel.onclick = () => setPanelOpen(!drawer.classList.contains('open'));
+if (closePanel && drawer) closePanel.onclick = () => setPanelOpen(false);
 
 const chatSendBtn = document.getElementById('chat-send');
 if (chatSendBtn) {
@@ -595,7 +627,6 @@ if (chatInputField) {
   setTimeout(() => chatInputField.focus(), 50);
 }
 
-const thresholdSlider = document.getElementById('threshold-slider');
 if (thresholdSlider) {
   thresholdSlider.addEventListener('input', (e) => {
     thresholdLabel.textContent = e.target.value;
@@ -703,11 +734,6 @@ if (configFile) {
   });
 }
 
-// Hand panel: SVG id (1-16) maps to alphabet index (0-15)
-// The alphabet is loaded dynamically, so we get the symbol from state.alphabet
-// Text shows the bit position of the mask for that symbol's IO
-let handSvgDoc = null;
-
 function initHandPanel() {
   fetch('hand.svg')
     .then(res => res.text())
@@ -787,6 +813,14 @@ function updateHandPanelLabels() {
 function updateHandPanelColors() {
   if (!handSvgDoc) return;
   const threshold = state.threshold;
+  const isDark = bodyEl.classList.contains('theme-dark');
+  const baseIdle = isDark ? baseCircleColors.dark : baseCircleColors.light;
+  const outline = handSvgDoc.querySelector('path');
+  if (outline) outline.setAttribute('stroke', isDark ? '#ffffff' : '#000000');
+
+  // Define vibrant colors for dark mode
+  const outputColor = isDark ? '#ff6b6b' : '#ef4444';  // Brighter red in dark mode
+  const inputColor = isDark ? '#68fe9fff' : '#22c55e';   // Brighter green in dark mode
 
   for (let id = 1; id <= 16; id++) {
     const circle = handSvgDoc.querySelector(`#circle-${id}`);
@@ -803,19 +837,19 @@ function updateHandPanelColors() {
     const isOutput = state.outputs.includes(ioBit);
 
     if (isOutput) {
-      // Output active: red
-      circle.setAttribute('fill', '#ef4444');
+      // Output active: vibrant red
+      circle.setAttribute('fill', outputColor);
     } else if (isInput) {
-      // Input active: green
-      circle.setAttribute('fill', '#22c55e');
+      // Input active: vibrant green
+      circle.setAttribute('fill', inputColor);
     } else if (capacitance > 0) {
-      // Has capacitance but not above threshold: gradient based on value
+      // Has capacitance but not above threshold: brighter gradient for dark mode
       const intensity = Math.min(1, capacitance / threshold);
-      const green = Math.round(200 * intensity);
-      circle.setAttribute('fill', `rgb(0, ${green}, 0)`);
+      const greenValue = isDark ? Math.round(100 + 155 * intensity) : Math.round(200 * intensity);
+      circle.setAttribute('fill', `rgb(0, ${greenValue}, 0)`);
     } else {
       // Inactive: black
-      circle.setAttribute('fill', '#000000');
+      circle.setAttribute('fill', baseIdle);
     }
   }
 }
