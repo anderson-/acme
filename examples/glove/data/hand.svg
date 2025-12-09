@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="157.49432mm" height="196.72011mm" viewBox="0 0 157.49432 196.72011" xmlns="http://www.w3.org/2000/svg" version="1.1">
+  <path d="m 34.498607,196.4697 99.059003,-0.157 c -2.564,-51.339 -7.905,-62.964 22.976,-146.619603 4.303,-13.4794 -11.996,-19.8154 -17.565,-5.6002 l -12.8,37.5071 c -1.249,3.1888 -5.399,2.2698 -4.892,-0.9576 l 7.093,-57.9671 c 2.532,-18.5063692 -20.152,-19.7724192 -21.569,-3.696 -1.758,25.2073 -2.314,41.9024 -3.827,56.7157 -0.361,3.9986 -5.217903,3.8946 -5.248003,0.147 0.2436,-18.8281 -0.6676,-39.9317 -1.2829,-64.3723 -0.246,-15.5663392 -21.7791,-14.3369392 -21.1352,-0.0105 0.6948,25.1511 2.1201,49.0847 2.1125,66.5873 0.1044,4.1944 -4.6537,4.6901 -5.4213,0.7343 l -8.9598,-59.798 c -2.2898,-14.6954092 -23.4042,-11.2050392 -20.6235,5.6148 l 11.9096,76.616103 c 1.6301,10.402 -8.3677,10.523 -12.1092,2.58 l -17.5431,-40.331303 c -7.2658,-13.4711 -28.64996,-4.5299 -23.68400896,10.1254 C 39.674838,166.3567 35.184733,168.0257 34.498607,196.4697 Z" fill="none" stroke="#000000" stroke-width="0.499999"/>
+
+  <g id="1">
+    <circle id="circle-1" cx="14.671802" cy="68.656273" r="5.004" fill="#000000"/>
+    <text id="text-1" x="14.459267" y="70.497025" font-size="5.64444px" text-anchor="middle" fill="#ffffff">1</text>
+  </g>
+
+  <g id="2">
+    <circle id="circle-2" cx="53.104115" cy="20.284523" r="5.004" fill="#000000"/>
+    <text id="text-2" x="53.028622" y="21.929144" font-size="5.64444px" text-anchor="middle" fill="#ffffff">2</text>
+  </g>
+
+  <g id="3">
+    <circle id="circle-3" cx="86.684738" cy="11.490552" r="5.004" fill="#000000"/>
+    <text id="text-3" x="86.710861" y="13.098619" font-size="5.64444px" text-anchor="middle" fill="#ffffff">3</text>
+  </g>
+
+  <g id="4">
+    <circle id="circle-4" cx="118.12225" cy="18.328619" r="5.004" fill="#000000"/>
+    <text id="text-4" x="118.02444" y="20.01586" font-size="5.64444px" text-anchor="middle" fill="#ffffff">4</text>
+  </g>
+
+  <g id="5">
+    <circle id="circle-5" cx="148.43709" cy="45.417061" r="5.004" fill="#000000"/>
+    <text id="text-5" x="148.2856" y="46.948959" font-size="5.64444px" text-anchor="middle" fill="#ffffff">5</text>
+  </g>
+
+  <g id="6">
+    <circle id="circle-6" cx="27.71907" cy="100.4176" r="5.004" fill="#000000"/>
+    <text id="text-6" x="27.602921" y="102.28691" font-size="5.64444px" text-anchor="middle" fill="#ffffff">6</text>
+  </g>
+
+  <g id="7">
+    <circle id="circle-7" cx="56.75872" cy="45.878681" r="5.004" fill="#000000"/>
+    <text id="text-7" x="56.863697" y="47.390499" font-size="5.64444px" text-anchor="middle" fill="#ffffff">7</text>
+  </g>
+
+  <g id="8">
+    <circle id="circle-8" cx="87.126259" cy="37.876663" r="5.004" fill="#000000"/>
+    <text id="text-8" x="87.21209" y="39.590202" font-size="5.64444px" text-anchor="middle" fill="#ffffff">8</text>
+  </g>
+
+  <g id="9">
+    <circle id="circle-9" cx="116.08158" cy="42.025677" r="5.004" fill="#000000"/>
+    <text id="text-9" x="116.05536" y="43.85828" font-size="5.64444px" text-anchor="middle" fill="#ffffff">9</text>
+  </g>
+
+  <g id="10">
+    <circle id="circle-10" cx="142.80119" cy="62.420055" r="5.004" fill="#000000"/>
+    <text id="text-10" x="142.98676" y="64.021317" font-size="5.64444px" text-anchor="middle" fill="#ffffff">10</text>
+  </g>
+
+  <g id="11">
+    <circle id="circle-11" cx="46.205151" cy="133.23575" r="5.004" fill="#000000"/>
+    <text id="text-11" x="46.522511" y="135.10704" font-size="5.64444px" text-anchor="middle" fill="#ffffff">11</text>
+  </g>
+
+  <g id="12">
+    <circle id="circle-12" cx="62.050381" cy="72.55854" r="5.004" fill="#000000"/>
+    <text id="text-12" x="62.041817" y="74.323586" font-size="5.64444px" text-anchor="middle" fill="#ffffff">12</text>
+  </g>
+
+  <g id="13">
+    <circle id="circle-13" cx="88.039078" cy="68.045815" r="5.004" fill="#000000"/>
+    <text id="text-13" x="88.075592" y="69.761154" font-size="5.64444px" text-anchor="middle" fill="#ffffff">13</text>
+  </g>
+
+  <g id="14">
+    <circle id="circle-14" cx="113.22906" cy="68.45591" r="5.004" fill="#000000"/>
+    <text id="text-14" x="112.99087" y="70.202682" font-size="5.64444px" text-anchor="middle" fill="#ffffff">14</text>
+  </g>
+
+  <g id="15">
+    <circle id="circle-15" cx="136.01299" cy="80.702751" r="5.004" fill="#000000"/>
+    <text id="text-15" x="136.06175" y="82.565414" font-size="5.64444px" text-anchor="middle" fill="#ffffff">15</text>
+  </g>
+
+  <g id="16">
+    <circle id="circle-16" cx="75.416748" cy="92.332779" r="5.004" fill="#000000"/>
+    <text id="text-16" x="75.451836" y="94.192268" font-size="5.64444px" text-anchor="middle" fill="#ffffff">16</text>
+  </g>
+</svg>
