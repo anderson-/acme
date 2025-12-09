@@ -42,6 +42,11 @@ public:
   void setDebugStreaming(bool enabled);
   bool debugStreamingEnabled() const { return debugStreaming; }
 
+  // OTA progress visualization
+  void showOtaProgress(uint8_t percent);
+  void showOtaComplete();
+  void showOtaError();
+
 private:
   void shiftZero();
   void pulseOutput(uint8_t bit, uint16_t ms);

@@ -6,7 +6,7 @@
 
 class LedRingAnimator {
 public:
-  enum Mode { Off, Solid, FadeIn, FadeOut, Ring, Blink, Pulse, Custom };
+  enum Mode { Off, Solid, FadeIn, FadeOut, Ring, Blink, Pulse, Custom, Progress };
 
   void begin();
   void tick(uint32_t now);
@@ -23,6 +23,14 @@ public:
   void setPixelBlink(uint8_t index, const CRGB& color, uint16_t onMs, uint16_t offMs, uint8_t times = 0);
   void setPixelPulse(uint8_t index, const CRGB& color, uint16_t fadeInMs, uint16_t fadeOutMs, uint8_t times = 0);
   bool isCustom() const { return mode == Custom; }
+  bool isRing() const { return mode == Ring; }
+  bool isIdle() const { return mode == Off || mode == Ring; }
+  bool isAnimating() const { return mode == Blink || mode == Pulse || mode == FadeIn || mode == FadeOut || mode == Progress; }
+  Mode getMode() const { return mode; }
+
+  // Progress bar (e.g., for OTA updates)
+  void progress(uint8_t percent, const CRGB& color = CRGB(0, 200, 100));
+  void progressPulse(uint8_t percent, const CRGB& color = CRGB(0, 200, 100));
 
 private:
   enum PixelType { None, PixelSolid, PixelBlink, PixelPulse };
@@ -46,6 +54,7 @@ private:
   void renderFade(uint32_t now);
   void renderRing();
   void renderPulse(uint32_t now);
+  void renderProgress(uint32_t now);
   float easeInOutCubic(float t);
 
   CRGB leds[RGB_CHAIN_LEN];
@@ -69,4 +78,9 @@ private:
   uint8_t pulseCompleted = 0;
   CRGB customBackground = CRGB::Black;
   PixelAnim pixels[RGB_CHAIN_LEN];
+
+  // Progress state
+  uint8_t progressPercent = 0;
+  CRGB progressColor = CRGB(0, 200, 100);
+  bool progressPulseEnabled = false;
 };

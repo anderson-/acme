@@ -39,24 +39,51 @@ void GloveDevice::beginRingOnly() {
   lastSequenceVisualized = 0;
 }
 
+// =============================================================================
+// LED RING ANIMATION SYSTEM
+// =============================================================================
+// Color Palette (distinct, accessible colors):
+//   - CYAN (30,190,200)    : Idle/Ready state - calm, neutral
+//   - BLUE (50,120,255)    : WiFi/Network activity
+//   - GREEN (40,220,80)    : Success/Confirmation
+//   - ORANGE (255,140,30)  : Boot/Warning/Attention
+//   - MAGENTA (200,50,180) : Hotspot/AP mode
+//   - RED (255,50,30)      : Error/Stop
+//   - YELLOW (255,200,40)  : Slow mode/Caution
+//   - AMBER (255,170,40)   : Gesture input active
+//   - WHITE (200,200,200)  : Neutral feedback
+//
+// Animation Types:
+//   - ring()  : Rotating LED - ongoing process (WiFi connecting, waiting)
+//   - pulse() : Fade in/out - transient event (message received)
+//   - blink() : On/off flash - attention/confirmation
+//   - solid() : Static color - stable state
+//   - progress() : Fill bar - progress indication (OTA)
+// =============================================================================
+
 void GloveDevice::showStatus(StatusStage stage) {
   if (!ringReady) beginRingOnly();
+  idleRingActive = false;
   switch (stage) {
     case StatusStage::Boot:
-      ring.blink(CRGB(240, 140, 20), 120, 120, 2);
-      ringResumeAt = millis() + 520;
-      break;
-    case StatusStage::WifiConnecting:
-      ring.ring(CRGB(50, 120, 255), 140);
-      ringResumeAt = 0;
-      break;
-    case StatusStage::WifiConnected:
-      ring.pulse(CRGB(40, 200, 90), 160, 220, 3);
+      // Orange pulse - device starting up
+      ring.pulse(CRGB(255, 140, 30), 300, 200, 2);
       ringResumeAt = millis() + 1100;
       break;
+    case StatusStage::WifiConnecting:
+      // Blue rotating - searching for network
+      ring.ring(CRGB(50, 120, 255), 120);
+      ringResumeAt = 0;  // Continues until connected
+      break;
+    case StatusStage::WifiConnected:
+      // Green pulse - connection successful
+      ring.pulse(CRGB(40, 220, 80), 250, 350, 2);
+      ringResumeAt = millis() + 1300;
+      break;
     case StatusStage::Hotspot:
-      ring.ring(CRGB(190, 60, 200), 110);
-      ringResumeAt = millis() + 900;
+      // Magenta rotating - AP mode active
+      ring.ring(CRGB(200, 50, 180), 100);
+      ringResumeAt = 0;  // Continues while in hotspot
       break;
     case StatusStage::Ready:
     default:
@@ -118,8 +145,9 @@ void GloveDevice::tick() {
 void GloveDevice::onMessageFromWeb(const String& text) {
   String clean = normalize(text);
   if (clean.isEmpty()) return;
-  ring.pulse(CRGB(90, 180, 255), 180, 220, 1); // cool blue pulse for inbound
-  ringResumeAt = millis() + 520;
+  // Blue pulse - incoming message from web
+  ring.pulse(CRGB(50, 120, 255), 200, 300, 1);
+  ringResumeAt = millis() + 600;
   playbackState = 0;
   player.setTimings(timingOn, timingOff, timingGap);
   player.queueMessage(clean, store);
@@ -261,37 +289,48 @@ void GloveDevice::handleButton(uint32_t now) {
 
 void GloveDevice::handleSingleClick() {
   if (!typingBuffer.isEmpty()) {
+    // Green pulse - message sent successfully
     sendMessageEvent("outbound", typingBuffer);
     typingBuffer = "";
     sendTypingEvent("done");
-    ring.blink(CRGB::Green, 120, 120, 1);
-    ringResumeAt = millis() + 400;
+    ring.pulse(CRGB(40, 220, 80), 150, 250, 2);
+    ringResumeAt = millis() + 900;
     return;
   }
   if (player.isActive()) {
     if (playbackState == 0) {
+      // Yellow solid - slow playback mode
       player.setTimings(timingOn * 2, timingOff * 2, timingGap * 2);
       player.restartLast(store, true);
       playbackState = 1;
-      ring.fadeTo(CRGB::Yellow, 200, true);
+      ring.solid(CRGB(255, 200, 40));
+      ringResumeAt = 0;  // Stays until state changes
     } else if (playbackState == 1) {
+      // Red solid - playback paused
       player.clear();
       player.setTimings(timingOn, timingOff, timingGap);
       playbackState = 2;
-      ring.fadeTo(CRGB::Red, 200, true);
+      ring.solid(CRGB(255, 50, 30));
+      ringResumeAt = 0;
     } else {
+      // Green pulse - resuming normal playback
       player.setTimings(timingOn, timingOff, timingGap);
       player.restartLast(store, false);
       playbackState = 0;
-      ring.fadeTo(CRGB::Green, 200, true);
+      ring.pulse(CRGB(40, 220, 80), 200, 300, 1);
+      ringResumeAt = millis() + 600;
     }
     return;
   }
   if (!player.lastMessageText().isEmpty() && playbackState == 2) {
     player.restartLast(store, false);
     playbackState = 0;
+    ring.pulse(CRGB(40, 220, 80), 200, 300, 1);
+    ringResumeAt = millis() + 600;
   } else if (player.lastMessageText().isEmpty()) {
-    pulseOutput(0, 100);
+    // White blink - no action available
+    ring.blink(CRGB(200, 200, 200), 100, 100, 1);
+    ringResumeAt = millis() + 300;
   }
 }
 
@@ -467,6 +506,9 @@ void GloveDevice::handleSymbol(char symbol) {
 }
 
 void GloveDevice::vibrateError() {
+  // Red blink - error/invalid input
+  ring.blink(CRGB(255, 50, 30), 80, 80, 3);
+  ringResumeAt = millis() + 550;
   const auto* g = store.get('w');
   if (g) player.queueGesture(*g);
 }
@@ -574,16 +616,22 @@ void GloveDevice::log(const char* msg) {
 
 void GloveDevice::applyBaseRingState(uint32_t now) {
   if (!ringReady) return;
+  // Don't interrupt temporary animations (pulse, blink, etc.)
+  // They will finish and ringResumeAt will trigger this again
+  if (ring.isAnimating()) return;
+
   if (!currentSequence.empty()) {
     if (lastSequenceVisualized != currentSequence.size()) showGestureProgress();
-  } else if (!idleRingActive || (now - lastInteraction) > GESTURE_TIMEOUT_MS) {
+  } else {
     showIdleRing();
   }
 }
 
 void GloveDevice::showIdleRing() {
   if (!ringReady) return;
-  ring.ring(CRGB(30, 190, 200), 160); // soft teal
+  if (idleRingActive && ring.isRing()) return;
+  // Cyan rotating - idle, ready for input
+  ring.ring(CRGB(30, 190, 200), 140);
   idleRingActive = true;
   lastSequenceVisualized = 0;
   ringResumeAt = 0;
@@ -593,11 +641,17 @@ void GloveDevice::showGestureProgress() {
   if (!ringReady) return;
   if (currentSequence.empty()) { showIdleRing(); return; }
   idleRingActive = false;
+  // Amber for gesture input - show progress as filled LEDs
   ring.customClear(CRGB::Black);
   size_t capped = std::min(currentSequence.size(), (size_t)RGB_CHAIN_LEN);
   for (size_t i = 0; i < capped; i++) {
-    if (i + 1 == capped) ring.setPixelBlink(i, CRGB(255, 170, 40), 180, 180, 0);
-    else ring.setPixel(i, CRGB(40, 160, 220));
+    if (i + 1 == capped) {
+      // Current step pulses amber
+      ring.setPixelPulse(i, CRGB(255, 170, 40), 300, 300, 0);
+    } else {
+      // Previous steps solid cyan
+      ring.setPixel(i, CRGB(30, 190, 200));
+    }
   }
   lastSequenceVisualized = capped;
   ringResumeAt = 0;
@@ -605,11 +659,30 @@ void GloveDevice::showGestureProgress() {
 
 void GloveDevice::showModeIndicator(uint8_t modeIndex) {
   if (!ringReady) return;
-  uint8_t led = modeIndex % RGB_CHAIN_LEN;
-  ring.customClear(CRGB::Black);
-  ring.setPixelBlink(led, CRGB::Red, 140, 120, 2);
-  ringResumeAt = millis() + (140 + 120) * 2 + 160;
   idleRingActive = false;
+  // Show mode with distinct color per mode, pulse animation
+  static const CRGB modeColors[] = {
+    CRGB(30, 190, 200),   // Mode 0: Chat - Cyan
+    CRGB(255, 140, 30),   // Mode 1: TouchFeedback - Orange
+    CRGB(200, 50, 180),   // Mode 2: Sequencer - Magenta
+    CRGB(50, 120, 255),   // Mode 3: Reserved - Blue
+    CRGB(40, 220, 80),    // Mode 4: Reserved - Green
+  };
+  uint8_t led = modeIndex % RGB_CHAIN_LEN;
+  CRGB color = modeColors[led];
+
+  // Fill up to the mode LED, pulse the active one
+  ring.customClear(CRGB::Black);
+  for (uint8_t i = 0; i <= led; i++) {
+    if (i == led) {
+      ring.setPixelPulse(i, color, 250, 350, 3);
+    } else {
+      CRGB dim = color;
+      dim.nscale8_video(60);
+      ring.setPixel(i, dim);
+    }
+  }
+  ringResumeAt = millis() + 1900;  // 3 pulses * ~600ms
 }
 
 String GloveDevice::normalize(const String& in) {
@@ -643,4 +716,19 @@ void GloveDevice::pushSymbol(char c) {
   doc["type"] = "symbol";
   doc["value"] = String(c);
   push(doc);
+}
+
+void GloveDevice::showOtaProgress(uint8_t percent) {
+  if (!ringReady) return;
+  ring.progressPulse(percent, CRGB(50, 120, 255));
+}
+
+void GloveDevice::showOtaComplete() {
+  if (!ringReady) return;
+  ring.pulse(CRGB(40, 220, 80), 200, 300, 3);
+}
+
+void GloveDevice::showOtaError() {
+  if (!ringReady) return;
+  ring.blink(CRGB(255, 50, 30), 80, 80, 5);
 }

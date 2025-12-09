@@ -45,11 +45,51 @@ bool GloveApp::begin() {
   }
 
   ArduinoOTA.onStart([&]() {
+    Serial.println("OTA: Starting...");
+    otaInProgress = true;
+    for (uint8_t i = 0; i < WEBSOCKETS_SERVER_CLIENT_MAX; i++) {
+      ws.disconnect(i);
+    }
     ws.close();
     httpServer.stop();
-    otaInProgress = true;
+    device.showOtaProgress(0);
   });
-  ArduinoOTA.onEnd([&]() { otaInProgress = false; });
+  ArduinoOTA.onEnd([&]() {
+    Serial.println("OTA: Complete!");
+    device.showOtaComplete();
+    unsigned long startTime = millis();
+    while (millis() - startTime < 2500) {
+      device.tickRing(millis());
+      delay(50);
+    }
+    otaInProgress = false;
+  });
+  ArduinoOTA.onProgress([&](unsigned int progress, unsigned int total) {
+    static uint8_t lastPercent = 255;
+    uint8_t percent = (progress * 100) / total;
+    if (percent != lastPercent) {
+      Serial.printf("OTA: %u%%\n", percent);
+      device.showOtaProgress(percent);
+      lastPercent = percent;
+    }
+    device.tickRing(millis());
+  });
+  ArduinoOTA.onError([&](ota_error_t error) {
+    Serial.printf("OTA Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+    else if (error == OTA_END_ERROR) Serial.println("End Failed");
+    device.showOtaError();
+    unsigned long startTime = millis();
+    while (millis() - startTime < 2500) {
+      device.tickRing(millis());
+      delay(50);
+    }
+    otaInProgress = false;
+  });
+  ArduinoOTA.setHostname("glove");
   ArduinoOTA.begin();
 
   ws.begin();
@@ -74,48 +114,77 @@ bool GloveApp::begin() {
 
 void GloveApp::loop() {
   ArduinoOTA.handle();
-  if (otaInProgress) return;
+  if (otaInProgress) {
+    device.tickRing(millis());  // Keep LED ring animating during OTA
+    yield();
+    return;
+  }
 
   if (hotspotMode) {
     dnsServer.processNextRequest();
+  } else if (WiFi.status() != WL_CONNECTED) {
+    static unsigned long lastReconnect = 0;
+    if (millis() - lastReconnect > 5000) {
+      Serial.println("WiFi disconnected, reconnecting...");
+      WiFi.reconnect();
+      lastReconnect = millis();
+    }
+    yield();
+    return;
   }
 
   ws.loop();
   device.tick();
+
   WiFiClient client = httpServer.available();
-  if (client) httpServeClient(client);
+  if (client) {
+    client.setTimeout(100);
+    httpServeClient(client);
+  }
+
+  yield();
 }
 
 void GloveApp::httpServeClient(WiFiClient client) {
+  unsigned long start = millis();
+  while (!client.available() && millis() - start < 100) {
+    yield();
+  }
+  if (!client.available()) {
+    client.stop();
+    return;
+  }
+
   String request = client.readStringUntil('\r');
   request.trim();
-  while (client.available()) {
+
+  unsigned long headerStart = millis();
+  while (client.available() && millis() - headerStart < 200) {
     String line = client.readStringUntil('\r');
     if (line == "\n" || line.length() == 0) break;
+    yield();
   }
   String path = "/";
   if (request.startsWith("GET ")) {
-    int start = 4;
-    int end = request.indexOf(' ', start);
-    path = request.substring(start, end);
+    int pathStart = 4;
+    int pathEnd = request.indexOf(' ', pathStart);
+    path = request.substring(pathStart, pathEnd);
   }
 
-  // Handle captive portal detection endpoints
   if (hotspotMode) {
     if (path == "/" || path == "/index.html") {
-      // Main page - serve normally
     } else if (path == "/generate_204" || path == "/connecttest.txt" ||
                path == "/hotspot-detect.html" || path == "/library/test/success.html" ||
                path == "/ncsi.txt") {
-      // Android/iOS captive portal detection - redirect to main page
       client.println("HTTP/1.1 302 Found");
       client.println("Location: /");
       client.println("Connection: close");
       client.println();
       client.stop();
       return;
+    } else if (path.endsWith(".css") || path.endsWith(".js") || path.endsWith(".svg") ||
+               path.endsWith(".ico") || path.endsWith(".json") || path.endsWith(".html")) {
     } else {
-      // All other requests in hotspot mode - redirect to main page
       client.println("HTTP/1.1 302 Found");
       client.println("Location: /");
       client.println("Connection: close");
@@ -151,11 +220,17 @@ void GloveApp::httpServeClient(WiFiClient client) {
   client.println("Connection: close");
   client.println();
 
-  const size_t chunk = 1024;
+  const size_t chunk = 512;
   uint8_t buf[chunk];
   while (file.available()) {
-    size_t n = file.read(buf, min(chunk, file.available()));
+    if (otaInProgress) {
+      file.close();
+      client.stop();
+      return;
+    }
+    size_t n = file.read(buf, min(chunk, (size_t)file.available()));
     client.write(buf, n);
+    yield();
   }
   file.close();
   client.flush();
