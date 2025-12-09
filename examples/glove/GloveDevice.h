@@ -90,6 +90,8 @@ private:
   uint32_t zeroStartTime = 0;
   std::vector<uint16_t> currentSequence;
   uint32_t lastStepTime = 0;
+  uint32_t candidateConfirmTime = 0;  // timeout para confirmar quando há múltiplos candidatos
+  std::vector<char> lastCandidates;   // candidatos do último check
 
   bool lastButtonState = false;
   uint32_t lastButtonChange = 0;

@@ -26,6 +26,7 @@ static const uint16_t CAPACITANCE_DELAY_US = 5;
 // Gesture timings
 static const uint16_t GESTURE_STABLE_MS = 100;
 static const uint16_t GESTURE_TIMEOUT_MS = 1500;
+static const uint16_t GESTURE_CONFIRM_MS = 400;  // timeout para confirmar quando há múltiplos candidatos
 static const uint16_t DEFAULT_STEP_ON_MS = 100;
 static const uint16_t DEFAULT_STEP_OFF_MS = 120;
 static const uint16_t DEFAULT_LETTER_GAP_MS = 200;

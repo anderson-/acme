@@ -111,6 +111,19 @@ std::vector<char> GestureStore::prefixMatches(const std::vector<uint16_t>& seque
   return matches;
 }
 
+std::vector<char> GestureStore::exactLengthMatches(const std::vector<uint16_t>& sequence) const {
+  std::vector<char> matches;
+  for (const auto& g : gestures) {
+    if (sequence.size() != g.steps.size()) continue;
+    bool ok = true;
+    for (size_t i = 0; i < sequence.size(); i++) {
+      if (g.steps[i].mask != sequence[i]) { ok = false; break; }
+    }
+    if (ok) matches.push_back(g.symbol);
+  }
+  return matches;
+}
+
 char GestureStore::fullMatch(const std::vector<uint16_t>& sequence) const {
   for (const auto& g : gestures) {
     if (sequence.size() != g.steps.size()) continue;

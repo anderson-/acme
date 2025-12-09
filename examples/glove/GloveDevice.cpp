@@ -298,8 +298,10 @@ void GloveDevice::handleSingleClick() {
 void GloveDevice::readInputs(uint32_t now) {
   if (mode == ModeTouchFeedback && (now < inputLockUntil)) return;
 
-  uint32_t mask = scanInputs();
+  uint32_t rawMask = scanInputs();
 
+  // Debounce: manter última máscara não-zero por um curto período
+  uint32_t mask = rawMask;
   if (mask == 0 && lastNonZeroMask != 0) {
     if (zeroStartTime == 0) {
       zeroStartTime = now;
@@ -337,29 +339,85 @@ void GloveDevice::readInputs(uint32_t now) {
     return;
   }
 
-  if (mask != stableMask && (now - lastMaskChange) >= GESTURE_STABLE_MS) {
+  // Quando usuário solta todas as teclas, resetar stableMask para permitir novo ciclo
+  if (mask == 0 && stableMask != 0) {
+    stableMask = 0;
+  }
+
+  // Lógica principal de detecção de gestos
+  // Só processar novo toque se: máscara mudou E está estável E é diferente de zero
+  if (mask != 0 && mask != stableMask && (now - lastMaskChange) >= GESTURE_STABLE_MS) {
     stableMask = mask;
-    if (stableMask != 0) {
-      currentSequence.push_back((uint16_t)stableMask);
-      lastStepTime = now;
-      sendGestureState();
-      showGestureProgress();
-      char matched = store.fullMatch(currentSequence);
-      if (matched != '\0') {
-        handleSymbol(matched);
-        currentSequence.clear();
-        showIdleRing();
-      } else {
-        sendTypingEvent("typing");
-      }
+
+    // Novo toque detectado - adicionar à sequência
+    currentSequence.push_back((uint16_t)stableMask);
+    lastStepTime = now;
+    sendGestureState();
+    showGestureProgress();
+
+    // Verificar candidatos
+    auto prefixCandidates = store.prefixMatches(currentSequence);
+    auto exactCandidates = store.exactLengthMatches(currentSequence);
+
+    // Verificar se há candidatos com mais steps (sequências mais longas)
+    bool hasLongerCandidates = prefixCandidates.size() > exactCandidates.size();
+
+    if (prefixCandidates.empty()) {
+      // Nenhum candidato - sequência inválida
+      vibrateError();
+      currentSequence.clear();
+      candidateConfirmTime = 0;
+      lastCandidates.clear();
+      sendGestureState(true);
+      showIdleRing();
+    } else if (exactCandidates.size() == 1 && !hasLongerCandidates) {
+      // Único candidato exato e SEM candidatos mais longos - confirmar imediatamente
+      handleSymbol(exactCandidates[0]);
+      currentSequence.clear();
+      candidateConfirmTime = 0;
+      lastCandidates.clear();
+      showIdleRing();
+    } else if (!exactCandidates.empty()) {
+      // Há candidatos exatos MAS também há prefixos mais longos
+      // Iniciar/reiniciar timeout para confirmação
+      candidateConfirmTime = now + GESTURE_CONFIRM_MS;
+      lastCandidates = exactCandidates;
+      sendTypingEvent("typing");
+    } else {
+      // Só há prefixos mais longos, aguardar mais input
+      // Cancelar qualquer timeout pendente
+      candidateConfirmTime = 0;
+      lastCandidates.clear();
+      sendTypingEvent("typing");
     }
   }
-  if (!currentSequence.empty() && (now - lastStepTime) > GESTURE_TIMEOUT_MS) {
-    vibrateError();
+
+  // Verificar timeout de confirmação (quando há múltiplos candidatos ou candidatos mais longos)
+  if (candidateConfirmTime != 0 && now >= candidateConfirmTime && !lastCandidates.empty()) {
+    // Timeout expirou sem novo input - confirmar o primeiro candidato exato
+    handleSymbol(lastCandidates[0]);
     currentSequence.clear();
-    sendGestureState(true);
+    candidateConfirmTime = 0;
+    lastCandidates.clear();
     showIdleRing();
   }
+
+  // Timeout geral da sequência (usuário parou de digitar)
+  if (!currentSequence.empty() && (now - lastStepTime) > GESTURE_TIMEOUT_MS) {
+    // Verificar se há um match exato antes de descartar
+    auto exactCandidates = store.exactLengthMatches(currentSequence);
+    if (!exactCandidates.empty()) {
+      handleSymbol(exactCandidates[0]);
+    } else {
+      vibrateError();
+      sendGestureState(true);
+    }
+    currentSequence.clear();
+    candidateConfirmTime = 0;
+    lastCandidates.clear();
+    showIdleRing();
+  }
+
   if (mask == 0 && currentSequence.empty() && (now - lastInteraction) > GESTURE_TIMEOUT_MS) {
     showIdleRing();
   }
