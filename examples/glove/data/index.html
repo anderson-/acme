@@ -117,6 +117,7 @@
             <div class="row" style="margin-top:10px;">
               <button id="download-config" class="btn ghost">Download</button>
               <button id="upload-config" class="btn ghost">Upload</button>
+              <button id="sequential-config" class="btn ghost">Sequential</button>
               <input id="config-file" type="file" accept="application/json" style="display:none;">
             </div>
             <div class="label" style="margin-top:10px;">Quick Play</div>
@@ -152,6 +153,31 @@
       <div class="row">
         <button id="modal-save" class="btn accent">Save</button>
         <button id="modal-cancel" class="btn ghost">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="sequential-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="row" style="justify-content: space-between;">
+        <div>
+          <div class="label">Sequential Recording</div>
+          <div style="font-weight:600;" id="sequential-subtitle">Letter: a</div>
+        </div>
+        <button id="sequential-close" class="btn ghost">×</button>
+      </div>
+      <div style="margin: 12px 0;">
+        <div class="label">Progress</div>
+        <div style="display: flex; gap: 4px; flex-wrap: wrap;" id="sequential-progress"></div>
+      </div>
+      <div style="margin: 12px 0;">
+        <div class="label">Steps</div>
+        <div id="sequential-steps" class="steps-row"></div>
+      </div>
+      <div class="row">
+        <button id="sequential-save" class="btn accent">Save & Next</button>
+        <button id="sequential-skip" class="btn ghost">Skip</button>
+        <button id="sequential-cancel" class="btn ghost">Cancel</button>
       </div>
     </div>
   </div>

@@ -187,13 +187,6 @@ void GloveApp::handleCommand(uint8_t num, const char* cmd, JsonVariant data) {
   } else if (strcmp(cmd, "play_letter") == 0) {
     String s = data["symbol"] | "";
     if (s.length() > 0) device.playLetter(s[0]);
-  } else if (strcmp(cmd, "start_capture") == 0) {
-    String s = data["symbol"] | "";
-    if (s.length() > 0) device.startCapture(s[0]);
-  } else if (strcmp(cmd, "cancel_capture") == 0) {
-    device.cancelCapture();
-  } else if (strcmp(cmd, "save_capture") == 0) {
-    device.saveCapture();
   } else if (strcmp(cmd, "request_alphabet") == 0) {
     device.sendAlphabet();
   } else if (strcmp(cmd, "request_status") == 0) {
@@ -236,7 +229,7 @@ void GloveApp::onWsEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t le
       break;
     }
     case WStype_TEXT: {
-      StaticJsonDocument<512> doc;
+      DynamicJsonDocument doc(6144);
       if (deserializeJson(doc, payload, length)) return;
       const char* cmd = doc["cmd"];
       if (!cmd) return;

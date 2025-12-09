@@ -13,7 +13,7 @@ bool GestureStore::begin() {
 bool GestureStore::load() {
   File f = SPIFFS.open(kFile, "r");
   if (!f) return false;
-  DynamicJsonDocument doc(8192);
+  DynamicJsonDocument doc(6144);
   if (deserializeJson(doc, f)) {
     f.close();
     return false;
@@ -42,7 +42,7 @@ bool GestureStore::load() {
 }
 
 bool GestureStore::save() {
-  DynamicJsonDocument doc(8192);
+  DynamicJsonDocument doc(6144);
   JsonArray arr = doc.createNestedArray("gestures");
   for (const auto& g : gestures) {
     JsonObject jg = arr.createNestedObject();
@@ -179,6 +179,5 @@ void GestureStore::buildDefaults() {
   addSingle('x', (1 << 6) | (1 << 14));
   addSingle('y', (1 << 7) | (1 << 15));
   addSingle('z', (1 << 0) | (1 << 7));
-  addSingle(' ', (1 << 0) | (1 << 1) | (1 << 2));
   addSingle('W', (1 << 14) | (1 << 15));
 }

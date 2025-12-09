@@ -1,0 +1,329 @@
+{
+  "gestures": [
+    {
+      "symbol": "a",
+      "steps": [
+        {
+          "mask": 128,
+          "hold": 100,
+          "pause": 120
+        }
+      ]
+    },
+    {
+      "symbol": "b",
+      "steps": [
+        {
+          "mask": 64,
+          "hold": 100,
+          "pause": 120
+        }
+      ]
+    },
+    {
+      "symbol": "c",
+      "steps": [
+        {
+          "mask": 32,
+          "hold": 100,
+          "pause": 120
+        }
+      ]
+    },
+    {
+      "symbol": "d",
+      "steps": [
+        {
+          "mask": 16,
+          "hold": 100,
+          "pause": 120
+        }
+      ]
+    },
+    {
+      "symbol": "e",
+      "steps": [
+        {
+          "mask": 8,
+          "hold": 100,
+          "pause": 120
+        }
+      ]
+    },
+    {
+      "symbol": "f",
+      "steps": [
+        {
+          "mask": 4,
+          "hold": 100,
+          "pause": 120
+        }
+      ]
+    },
+    {
+      "symbol": "g",
+      "steps": [
+        {
+          "mask": 2,
+          "hold": 100,
+          "pause": 120
+        }
+      ]
+    },
+    {
+      "symbol": "h",
+      "steps": [
+        {
+          "mask": 4096,
+          "hold": 100,
+          "pause": 120
+        }
+      ]
+    },
+    {
+      "symbol": "i",
+      "steps": [
+        {
+          "mask": 1,
+          "hold": 100,
+          "pause": 120
+        }
+      ]
+    },
+    {
+      "symbol": "j",
+      "steps": [
+        {
+          "mask": 16384,
+          "hold": 100,
+          "pause": 120
+        }
+      ]
+    },
+    {
+      "symbol": "k",
+      "steps": [
+        {
+          "mask": 256,
+          "hold": 100,
+          "pause": 120
+        }
+      ]
+    },
+    {
+      "symbol": "l",
+      "steps": [
+        {
+          "mask": 2048,
+          "hold": 100,
+          "pause": 120
+        }
+      ]
+    },
+    {
+      "symbol": "m",
+      "steps": [
+        {
+          "mask": 8192,
+          "hold": 100,
+          "pause": 120
+        }
+      ]
+    },
+    {
+      "symbol": "n",
+      "steps": [
+        {
+          "mask": 512,
+          "hold": 100,
+          "pause": 120
+        }
+      ]
+    },
+    {
+      "symbol": "o",
+      "steps": [
+        {
+          "mask": 32768,
+          "hold": 100,
+          "pause": 120
+        }
+      ]
+    },
+    {
+      "symbol": "p",
+      "steps": [
+        {
+          "mask": 128,
+          "hold": 100,
+          "pause": 120
+        },
+        {
+          "mask": 128,
+          "hold": 100,
+          "pause": 120
+        }
+      ]
+    },
+    {
+      "symbol": "q",
+      "steps": [
+        {
+          "mask": 64,
+          "hold": 100,
+          "pause": 120
+        },
+        {
+          "mask": 64,
+          "hold": 100,
+          "pause": 120
+        }
+      ]
+    },
+    {
+      "symbol": "r",
+      "steps": [
+        {
+          "mask": 32,
+          "hold": 100,
+          "pause": 120
+        },
+        {
+          "mask": 32,
+          "hold": 100,
+          "pause": 120
+        }
+      ]
+    },
+    {
+      "symbol": "s",
+      "steps": [
+        {
+          "mask": 16,
+          "hold": 100,
+          "pause": 120
+        },
+        {
+          "mask": 16,
+          "hold": 100,
+          "pause": 120
+        }
+      ]
+    },
+    {
+      "symbol": "t",
+      "steps": [
+        {
+          "mask": 8,
+          "hold": 100,
+          "pause": 120
+        },
+        {
+          "mask": 8,
+          "hold": 100,
+          "pause": 120
+        }
+      ]
+    },
+    {
+      "symbol": "u",
+      "steps": [
+        {
+          "mask": 256,
+          "hold": 100,
+          "pause": 120
+        },
+        {
+          "mask": 256,
+          "hold": 100,
+          "pause": 120
+        }
+      ]
+    },
+    {
+      "symbol": "v",
+      "steps": [
+        {
+          "mask": 2048,
+          "hold": 100,
+          "pause": 120
+        },
+        {
+          "mask": 2048,
+          "hold": 100,
+          "pause": 120
+        }
+      ]
+    },
+    {
+      "symbol": "w",
+      "steps": [
+        {
+          "mask": 1024,
+          "hold": 100,
+          "pause": 120
+        }
+      ]
+    },
+    {
+      "symbol": "x",
+      "steps": [
+        {
+          "mask": 8192,
+          "hold": 100,
+          "pause": 120
+        },
+        {
+          "mask": 8192,
+          "hold": 100,
+          "pause": 120
+        }
+      ]
+    },
+    {
+      "symbol": "y",
+      "steps": [
+        {
+          "mask": 512,
+          "hold": 100,
+          "pause": 120
+        },
+        {
+          "mask": 512,
+          "hold": 100,
+          "pause": 120
+        }
+      ]
+    },
+    {
+      "symbol": "z",
+      "steps": [
+        {
+          "mask": 32768,
+          "hold": 100,
+          "pause": 120
+        },
+        {
+          "mask": 32768,
+          "hold": 100,
+          "pause": 120
+        }
+      ]
+    },
+    {
+      "symbol": "W",
+      "steps": [
+        {
+          "mask": 1024,
+          "hold": 100,
+          "pause": 120
+        },
+        {
+          "mask": 1024,
+          "hold": 100,
+          "pause": 120
+        }
+      ]
+    }
+  ]
+}

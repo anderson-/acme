@@ -5,6 +5,8 @@ let modalSymbol = null;
 
 if (wsHost == 'localhost') wsHost = '192.168.3.141';
 
+const CAPTURE_STABLE_MS = 100; // Time input must be stable to register as step
+
 const state = {
   connected: false,
   mode: 0,
@@ -19,7 +21,8 @@ const state = {
   typing: null,
   typingBuffer: '',
   playback: 'idle',
-  capture: { active: false, symbol: null, steps: [] },
+  capture: { active: false, symbol: null, steps: [], lastMask: 0, stableMask: 0, lastChange: 0 },
+  sequential: { active: false, currentIndex: 0, letters: [] },
 };
 let heartbeat;
 let lastPong = 0;
@@ -46,6 +49,14 @@ const modalSteps = document.getElementById('modal-steps');
 const modalSave = document.getElementById('modal-save');
 const modalCancel = document.getElementById('modal-cancel');
 const modalClose = document.getElementById('modal-close');
+const sequentialModal = document.getElementById('sequential-modal');
+const sequentialSubtitle = document.getElementById('sequential-subtitle');
+const sequentialProgress = document.getElementById('sequential-progress');
+const sequentialSteps = document.getElementById('sequential-steps');
+const sequentialSave = document.getElementById('sequential-save');
+const sequentialSkip = document.getElementById('sequential-skip');
+const sequentialCancel = document.getElementById('sequential-cancel');
+const sequentialClose = document.getElementById('sequential-close');
 const drawer = document.getElementById('drawer');
 const openPanel = document.getElementById('open-panel');
 const closePanel = document.getElementById('close-panel');
@@ -174,7 +185,6 @@ function renderAlphabet() {
 function defaultAlphabet() {
   const base = [];
   for (let i = 0; i < 26; i++) base.push(String.fromCharCode(97 + i));
-  base.push(' ');
   base.push('W');
   return base;
 }
@@ -182,14 +192,14 @@ function defaultAlphabet() {
 function openCapture(symbol) {
   modalContext = 'capture';
   modalSymbol = symbol;
-  state.capture = { active: true, symbol, steps: [] };
+  state.capture = { active: true, symbol, steps: [], lastMask: 0, stableMask: 0, lastChange: Date.now() };
   modal.classList.remove('hidden');
   modalTitle.textContent = 'Record gesture';
   modalSubtitle.textContent = `Letter: ${symbol}`;
   modalSave.textContent = 'Save';
   modalCancel.textContent = 'Cancel';
   modalSteps.innerHTML = '';
-  sendCmd('start_capture', { symbol });
+  sendCmd('set_debug_streaming', { enabled: true });
 }
 
 function openPreview(symbol) {
@@ -207,18 +217,106 @@ function openPreview(symbol) {
 function closeModal() {
   modal.classList.add('hidden');
   modalSymbol = null;
-  state.capture = { active: false, symbol: null, steps: [] };
+  state.capture = { active: false, symbol: null, steps: [], lastMask: 0, stableMask: 0, lastChange: 0 };
   modalSteps.innerHTML = '';
-  if (modalContext === 'capture') {
-    sendCmd('cancel_capture');
+}
+
+function openSequential() {
+  const letters = [];
+  for (let i = 0; i < 26; i++) letters.push(String.fromCharCode(97 + i));
+  letters.push('W');
+
+  state.sequential = { active: true, currentIndex: 0, letters };
+  sequentialModal.classList.remove('hidden');
+  updateSequentialDisplay();
+  startSequentialCapture();
+}
+
+function closeSequential() {
+  sequentialModal.classList.add('hidden');
+  state.sequential = { active: false, currentIndex: 0, letters: [] };
+  state.capture = { active: false, symbol: null, steps: [], lastMask: 0, stableMask: 0, lastChange: 0 };
+  sequentialSteps.innerHTML = '';
+}
+
+function updateSequentialDisplay() {
+  const currentLetter = state.sequential.letters[state.sequential.currentIndex];
+  sequentialSubtitle.textContent = `Letter: ${currentLetter}`;
+
+  sequentialProgress.innerHTML = '';
+  state.sequential.letters.forEach((letter, idx) => {
+    const chip = document.createElement('div');
+    chip.className = 'step-chip';
+    if (idx < state.sequential.currentIndex) {
+      chip.style.backgroundColor = '#10b981';
+      chip.style.color = 'white';
+    } else if (idx === state.sequential.currentIndex) {
+      chip.style.backgroundColor = '#3b82f6';
+      chip.style.color = 'white';
+    }
+    chip.textContent = letter;
+    sequentialProgress.appendChild(chip);
+  });
+}
+
+function startSequentialCapture() {
+  const currentLetter = state.sequential.letters[state.sequential.currentIndex];
+  state.capture = { active: true, symbol: currentLetter, steps: [], lastMask: 0, stableMask: 0, lastChange: Date.now() };
+  sequentialSteps.innerHTML = '';
+  sendCmd('set_debug_streaming', { enabled: true });
+}
+
+function saveAndNextSequential() {
+  if (state.capture.steps.length > 0) {
+    saveGestureToDevice(state.capture.symbol, state.capture.steps);
+  }
+  setTimeout(() => {
+    moveToNextLetter();
+  }, 150);
+}
+
+function skipSequential() {
+  state.capture = { active: false, symbol: null, steps: [], lastMask: 0, stableMask: 0, lastChange: 0 };
+  setTimeout(() => {
+    moveToNextLetter();
+  }, 150);
+}
+
+function saveGestureToDevice(symbol, steps) {
+  // Update local gestures array
+  const existingIdx = state.gestures.findIndex(g => g.symbol === symbol);
+  const gestureObj = { symbol, steps: steps.map(mask => ({ mask })) };
+  if (existingIdx >= 0) {
+    state.gestures[existingIdx] = gestureObj;
+  } else {
+    state.gestures.push(gestureObj);
+  }
+  // Send updated gestures to device
+  sendCmd('upload_config', { gestures: state.gestures });
+}
+
+function moveToNextLetter() {
+  state.sequential.currentIndex++;
+  if (state.sequential.currentIndex < state.sequential.letters.length) {
+    updateSequentialDisplay();
+    startSequentialCapture();
+  } else {
+    closeSequential();
+    setTimeout(() => sendCmd('request_alphabet'), 150);
   }
 }
 
 modalCancel.onclick = closeModal;
 modalClose.onclick = closeModal;
+sequentialCancel.onclick = closeSequential;
+sequentialClose.onclick = closeSequential;
+sequentialSave.onclick = saveAndNextSequential;
+sequentialSkip.onclick = skipSequential;
 modalSave.onclick = () => {
   if (modalContext === 'capture') {
-    sendCmd('save_capture');
+    if (state.capture.steps.length > 0) {
+      saveGestureToDevice(state.capture.symbol, state.capture.steps);
+    }
     closeModal();
     setTimeout(() => sendCmd('request_alphabet'), 150);
   } else {
@@ -227,15 +325,65 @@ modalSave.onclick = () => {
   }
 };
 
-function renderCaptureSteps(steps) {
-  modalSteps.innerHTML = '';
+function maskToPinString(mask) {
+  if (mask === 0) return 'none';
+  const pins = [];
+  for (let i = 0; i < 16; i++) {
+    if (mask & (1 << i)) {
+      pins.push(i);
+    }
+  }
+  return pins.join(' + ');
+}
+
+function renderCaptureSteps(steps, targetElement = modalSteps) {
+  targetElement.innerHTML = '';
   steps.forEach((step, idx) => {
     const mask = typeof step === 'object' ? step.mask : step;
     const chip = document.createElement('div');
     chip.className = 'step-chip';
-    chip.textContent = `#${idx+1}: ${mask.toString(2).padStart(16, '0')}`;
-    modalSteps.appendChild(chip);
+    chip.textContent = `#${idx+1}: ${maskToPinString(mask)}`;
+    targetElement.appendChild(chip);
   });
+}
+
+function pinsToMask(pins) {
+  let mask = 0;
+  for (const pin of pins) {
+    mask |= (1 << pin);
+  }
+  return mask;
+}
+
+function processInputForCapture(pins) {
+  if (!state.capture.active) return;
+
+  const now = Date.now();
+  const mask = pinsToMask(pins);
+
+  // Track mask changes
+  if (mask !== state.capture.lastMask) {
+    state.capture.lastMask = mask;
+    state.capture.lastChange = now;
+  }
+
+  // Check if mask has been stable long enough
+  if (mask !== state.capture.stableMask && (now - state.capture.lastChange) >= CAPTURE_STABLE_MS) {
+    state.capture.stableMask = mask;
+
+    // Only add non-zero masks as steps
+    if (mask !== 0) {
+      state.capture.steps.push(mask);
+
+      // Update UI
+      if (modalContext === 'capture' && !modal.classList.contains('hidden')) {
+        renderCaptureSteps(state.capture.steps);
+      }
+      if (state.sequential.active && !sequentialModal.classList.contains('hidden')) {
+        renderCaptureSteps(state.capture.steps, sequentialSteps);
+      }
+    }
+  }
 }
 
 function sanitize(text) {
@@ -345,6 +493,8 @@ function handleMessage(msg) {
       updateIOGrid(inputGridDebug, state.inputs);
       updateCapacitanceBars();
       if (inputState) inputState.textContent = `Active inputs: ${state.inputs.join(', ') || 'none'}`;
+      // Process input for JS-based capture
+      processInputForCapture(state.inputs);
       break;
     case 'input_idle':
       state.inputs = [];
@@ -353,6 +503,8 @@ function handleMessage(msg) {
       updateIOGrid(inputGridDebug, []);
       updateCapacitanceBars();
       if (inputState) inputState.textContent = 'No input detected';
+      // Process idle input for JS-based capture
+      processInputForCapture([]);
       break;
     case 'output':
       state.outputs = msg.pins || [];
@@ -366,12 +518,6 @@ function handleMessage(msg) {
       break;
     case 'gesture_state':
       renderGestureState(msg);
-      break;
-    case 'capture':
-      if (modalContext === 'capture') {
-        state.capture.steps = msg.steps || [];
-        renderCaptureSteps(state.capture.steps);
-      }
       break;
     case 'log':
       pushLog(msg.msg);
@@ -387,7 +533,7 @@ function renderGestureState(msg) {
   (msg.sequence || []).forEach((mask, idx) => {
     const chip = document.createElement('div');
     chip.className = 'step-chip';
-    chip.textContent = `#${idx+1}: ${mask.toString(2).padStart(16, '0')}`;
+    chip.textContent = `#${idx+1}: ${maskToPinString(mask)}`;
     gestureSeq.appendChild(chip);
   });
   gestureCandidates.innerHTML = '';
@@ -496,6 +642,8 @@ if (downloadBtn) {
 }
 const uploadBtn = document.getElementById('upload-config');
 if (uploadBtn) uploadBtn.onclick = () => document.getElementById('config-file').click();
+const sequentialBtn = document.getElementById('sequential-config');
+if (sequentialBtn) sequentialBtn.onclick = () => openSequential();
 const configFile = document.getElementById('config-file');
 if (configFile) {
   configFile.addEventListener('change', (e) => {

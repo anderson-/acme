@@ -43,19 +43,19 @@ void GloveDevice::showStatus(StatusStage stage) {
   if (!ringReady) beginRingOnly();
   switch (stage) {
     case StatusStage::Boot:
-      ring.blink(CRGB(240, 140, 20), 120, 120, 2); // amber blink
+      ring.blink(CRGB(240, 140, 20), 120, 120, 2);
       ringResumeAt = millis() + 520;
       break;
     case StatusStage::WifiConnecting:
-      ring.ring(CRGB(50, 120, 255), 140); // deep blue ring
+      ring.ring(CRGB(50, 120, 255), 140);
       ringResumeAt = 0;
       break;
     case StatusStage::WifiConnected:
-      ring.pulse(CRGB(40, 200, 90), 160, 220, 3); // fresh green pulse
+      ring.pulse(CRGB(40, 200, 90), 160, 220, 3);
       ringResumeAt = millis() + 1100;
       break;
     case StatusStage::Hotspot:
-      ring.ring(CRGB(190, 60, 200), 110); // magenta ring
+      ring.ring(CRGB(190, 60, 200), 110);
       ringResumeAt = millis() + 900;
       break;
     case StatusStage::Ready:
@@ -168,31 +168,8 @@ void GloveDevice::setDebugStreaming(bool enabled) {
   sendStatus("debug_stream");
 }
 
-void GloveDevice::startCapture(char symbol) {
-  captureActive = true;
-  captureSymbol = symbol;
-  captureSequence.clear();
-  sendCaptureEvent("start");
-}
-
-void GloveDevice::cancelCapture() {
-  captureActive = false;
-  captureSequence.clear();
-  sendCaptureEvent("cancel");
-}
-
-void GloveDevice::saveCapture() {
-  if (!captureActive || captureSequence.empty()) return;
-  std::vector<GestureStep> steps;
-  for (auto mask : captureSequence) steps.push_back(GestureStep{mask, DEFAULT_STEP_ON_MS, DEFAULT_STEP_OFF_MS});
-  store.updateGesture(captureSymbol, steps);
-  captureActive = false;
-  sendAlphabet();
-  sendCaptureEvent("saved");
-}
-
 void GloveDevice::sendAlphabet() {
-  StaticJsonDocument<2048> doc;
+  DynamicJsonDocument doc(6144);
   doc["type"] = "alphabet";
   store.asJson(doc);
   push(doc);
@@ -292,13 +269,22 @@ void GloveDevice::handleSingleClick() {
 }
 
 void GloveDevice::readInputs(uint32_t now) {
-  if (captureActive) {
-    handleCapture(now);
-    return;
-  }
   if (mode == ModeTouchFeedback && (now < inputLockUntil)) return;
 
   uint32_t mask = scanInputs();
+
+  if (mask == 0 && lastNonZeroMask != 0) {
+    if (zeroStartTime == 0) {
+      zeroStartTime = now;
+    }
+    if ((now - zeroStartTime) < (GESTURE_STABLE_MS / 2)) {
+      mask = lastNonZeroMask;
+    }
+  } else if (mask != 0) {
+    lastNonZeroMask = mask;
+    zeroStartTime = 0;
+  }
+
   if (mask != lastRawMask) {
     lastRawMask = mask;
     lastMaskChange = now;
@@ -378,21 +364,6 @@ uint8_t GloveDevice::readAndWrite(uint32_t& bits, uint8_t index) {
   bool hit = cycles >= touchThreshold;
   bitWrite(bits, index, hit);
   return hit ? 1 : 0;
-}
-
-void GloveDevice::handleCapture(uint32_t now) {
-  uint32_t mask = scanInputs();
-  if (mask != captureLastMask) {
-    captureLastChange = now;
-    captureLastMask = mask;
-  }
-  if (mask != captureStable && (now - captureLastChange) >= GESTURE_STABLE_MS) {
-    captureStable = mask;
-    if (captureStable != 0) {
-      captureSequence.push_back((uint16_t)captureStable);
-      sendCaptureEvent("step");
-    }
-  }
 }
 
 void GloveDevice::handleSymbol(char symbol) {
@@ -498,16 +469,6 @@ void GloveDevice::sendOutput(uint16_t mask) {
   doc["mask"] = mask;
   JsonArray pins = doc.createNestedArray("pins");
   for (int i = 0; i < 16; i++) if (bitRead(mask, i)) pins.add(i);
-  push(doc);
-}
-
-void GloveDevice::sendCaptureEvent(const char* event) {
-  StaticJsonDocument<256> doc;
-  doc["type"] = "capture";
-  doc["event"] = event;
-  doc["symbol"] = String(captureSymbol);
-  JsonArray seq = doc.createNestedArray("steps");
-  for (auto m : captureSequence) seq.add(m);
   push(doc);
 }
 

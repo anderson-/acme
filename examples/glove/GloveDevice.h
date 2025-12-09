@@ -33,9 +33,6 @@ public:
   uint8_t getThreshold() const { return touchThreshold; }
   void setTimings(uint16_t onMs, uint16_t offMs, uint16_t gapMs);
   void setAnimation(const String& name, uint32_t rgb, uint16_t speedMs, uint8_t count = 0);
-  void startCapture(char symbol);
-  void cancelCapture();
-  void saveCapture();
   void sendAlphabet();
   void playLetter(char symbol);
   void requestState();
@@ -52,7 +49,6 @@ private:
   void readInputs(uint32_t now);
   uint32_t scanInputs();
   uint8_t readAndWrite(uint32_t& bits, uint8_t index);
-  void handleCapture(uint32_t now);
   void handleSymbol(char symbol);
   void vibrateError();
   void runSequencer(uint32_t now);
@@ -63,7 +59,6 @@ private:
   void publishInputs(uint32_t mask);
   void sendNoInput();
   void sendOutput(uint16_t mask);
-  void sendCaptureEvent(const char* event);
   void push(JsonDocument& doc);
   void log(const char* msg);
   String normalize(const String& in);
@@ -90,15 +85,10 @@ private:
   uint32_t stableMask = 0;
   uint32_t lastNotifiedMask = 0;
   uint32_t lastMaskChange = 0;
+  uint32_t lastNonZeroMask = 0;
+  uint32_t zeroStartTime = 0;
   std::vector<uint16_t> currentSequence;
   uint32_t lastStepTime = 0;
-
-  bool captureActive = false;
-  char captureSymbol = 'a';
-  uint32_t captureLastMask = 0;
-  uint32_t captureStable = 0;
-  uint32_t captureLastChange = 0;
-  std::vector<uint16_t> captureSequence;
 
   bool lastButtonState = false;
   uint32_t lastButtonChange = 0;
