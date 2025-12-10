@@ -54,8 +54,7 @@ body {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  position: sticky;
+    position: sticky;
   top: 8px;
   z-index: 2;
 }
@@ -104,8 +103,7 @@ body {
   border-radius: var(--radius);
   padding: 16px;
   background: var(--panel);
-  box-shadow: var(--shadow);
-}
+  }
 
 .chat-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
 
@@ -176,7 +174,7 @@ select.field option {
   height: clamp(340px, 42vh, 460px);
   overflow-y: auto;
   border: none;
-  scrollbar-gutter: stable both-edges;
+  scrollbar-gutter: stable;
 }
 
 .bubble {
@@ -309,11 +307,10 @@ input[type="range"]::-moz-range-thumb {
   background: var(--panel);
   border-radius: var(--radius);
   border: 1px solid var(--border);
-  margin-bottom: 8px;
-  box-shadow: var(--shadow);
-}
+  margin-bottom: 16px;
+  }
 
-.drawer-grid { display: grid; gap: 12px; }
+.drawer-grid { display: grid; gap: 16px; }
 
 .grid { display: grid; gap: 10px; }
 .grid.two { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
@@ -513,14 +510,14 @@ input[type="range"]::-moz-range-thumb {
     padding: 0;
     border: none;
     box-shadow: none;
-    padding-right: 10px;
+    padding-right: 16px;
   }
   .drawer.open {
     position: sticky;
     top: 16px;
     max-height: calc(100vh - 100px);
     overflow-y: auto;
-    scrollbar-gutter: stable both-edges;
+    scrollbar-gutter: stable;
     background: transparent;
   }
   .chat-card { height: fit-content; }
@@ -529,7 +526,7 @@ input[type="range"]::-moz-range-thumb {
 @media (max-width: 600px) {
   .topbar { position: static; }
   .layout { margin-top: 12px; }
-  .drawer.open { margin-top: 6px; }
+  .drawer.open { margin-top: 16px; }
   .chat-input { flex-wrap: wrap; }
   #chat-send { width: 100%; }
 }
