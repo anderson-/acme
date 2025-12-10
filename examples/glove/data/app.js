@@ -507,6 +507,27 @@ function handleMessage(msg) {
       statusPlayback.textContent = msg.playback_active ? 'playing' : 'idle';
       statusBuffer.textContent = msg.buffer || '-';
       if (statusMemory) statusMemory.textContent = state.freeMemory || '-';
+
+      // Initialize hardware timing sliders
+      if (msg.hardware_timings) {
+        const timings = msg.hardware_timings;
+        if (timings.latch_delay_us !== undefined && latchDelaySlider) {
+          latchDelaySlider.value = timings.latch_delay_us;
+          if (latchDelayLabel) latchDelayLabel.textContent = `${timings.latch_delay_us}μs`;
+        }
+        if (timings.soft_shift_delay_us !== undefined && softShiftDelaySlider) {
+          softShiftDelaySlider.value = timings.soft_shift_delay_us;
+          if (softShiftDelayLabel) softShiftDelayLabel.textContent = `${timings.soft_shift_delay_us}μs`;
+        }
+        if (timings.mux_delay_us !== undefined && muxDelaySlider) {
+          muxDelaySlider.value = timings.mux_delay_us;
+          if (muxDelayLabel) muxDelayLabel.textContent = `${timings.mux_delay_us}μs`;
+        }
+        if (timings.capacitance_delay_us !== undefined && capacitanceDelaySlider) {
+          capacitanceDelaySlider.value = timings.capacitance_delay_us;
+          if (capacitanceDelayLabel) capacitanceDelayLabel.textContent = `${timings.capacitance_delay_us}μs`;
+        }
+      }
       break;
     case 'message':
       appendChat({ from: msg.direction === 'inbound' ? 'me' : 'device', text: msg.text });
@@ -641,6 +662,50 @@ if (timingApply) {
       on: Number(document.getElementById('timing-on').value),
       off: Number(document.getElementById('timing-off').value),
       gap: Number(document.getElementById('timing-gap').value),
+    });
+  };
+}
+
+// Hardware timing controls
+const latchDelaySlider = document.getElementById('latch-delay-slider');
+const softShiftDelaySlider = document.getElementById('soft-shift-delay-slider');
+const muxDelaySlider = document.getElementById('mux-delay-slider');
+const capacitanceDelaySlider = document.getElementById('capacitance-delay-slider');
+const latchDelayLabel = document.getElementById('latch-delay-label');
+const softShiftDelayLabel = document.getElementById('soft-shift-delay-label');
+const muxDelayLabel = document.getElementById('mux-delay-label');
+const capacitanceDelayLabel = document.getElementById('capacitance-delay-label');
+
+// Update labels when sliders change
+if (latchDelaySlider) {
+  latchDelaySlider.addEventListener('input', (e) => {
+    latchDelayLabel.textContent = `${e.target.value}μs`;
+  });
+}
+if (softShiftDelaySlider) {
+  softShiftDelaySlider.addEventListener('input', (e) => {
+    softShiftDelayLabel.textContent = `${e.target.value}μs`;
+  });
+}
+if (muxDelaySlider) {
+  muxDelaySlider.addEventListener('input', (e) => {
+    muxDelayLabel.textContent = `${e.target.value}μs`;
+  });
+}
+if (capacitanceDelaySlider) {
+  capacitanceDelaySlider.addEventListener('input', (e) => {
+    capacitanceDelayLabel.textContent = `${e.target.value}μs`;
+  });
+}
+
+const hardwareTimingApply = document.getElementById('hardware-timing-apply');
+if (hardwareTimingApply) {
+  hardwareTimingApply.onclick = () => {
+    sendCmd('set_hardware_timings', {
+      latch_delay_us: Number(latchDelaySlider.value),
+      soft_shift_delay_us: Number(softShiftDelaySlider.value),
+      mux_delay_us: Number(muxDelaySlider.value),
+      capacitance_delay_us: Number(capacitanceDelaySlider.value),
     });
   };
 }

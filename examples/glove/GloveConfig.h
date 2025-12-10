@@ -17,11 +17,21 @@ static const uint8_t PIN_BUTTON = 21;
 static const uint8_t PIN_RGB = 32;
 static const uint8_t RGB_CHAIN_LEN = 5;
 
-// Shift and mux timing
-static const uint16_t LATCH_DELAY_US = 40;
-static const uint16_t SOFT_SHIFT_DELAY_US = 10;
-static const uint16_t MUX_DELAY_US = 10;
-static const uint16_t CAPACITANCE_DELAY_US = 5;
+// Shift and mux timing (default values - configurable via UI)
+#define DEFAULT_LATCH_DELAY_US 40
+#define DEFAULT_SOFT_SHIFT_DELAY_US 10
+#define DEFAULT_MUX_DELAY_US 10
+#define DEFAULT_CAPACITANCE_DELAY_US 5
+
+// Timing validation limits
+#define MIN_LATCH_DELAY_US 10
+#define MAX_LATCH_DELAY_US 100
+#define MIN_SOFT_SHIFT_DELAY_US 5
+#define MAX_SOFT_SHIFT_DELAY_US 50
+#define MIN_MUX_DELAY_US 5
+#define MAX_MUX_DELAY_US 50
+#define MIN_CAPACITANCE_DELAY_US 1
+#define MAX_CAPACITANCE_DELAY_US 20
 
 // Gesture timings
 static const uint16_t GESTURE_STABLE_MS = 100;

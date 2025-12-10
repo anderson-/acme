@@ -32,6 +32,7 @@ public:
   void setThreshold(uint8_t t);
   uint8_t getThreshold() const { return touchThreshold; }
   void setTimings(uint16_t onMs, uint16_t offMs, uint16_t gapMs);
+  void setHardwareTimings(uint16_t latchUs, uint16_t softShiftUs, uint16_t muxUs, uint16_t capacitanceUs);
   void setAnimation(const String& name, uint32_t rgb, uint16_t speedMs, uint8_t count = 0);
   void sendAlphabet();
   void playLetter(char symbol);
@@ -86,6 +87,12 @@ private:
   uint16_t timingOn = DEFAULT_STEP_ON_MS;
   uint16_t timingOff = DEFAULT_STEP_OFF_MS;
   uint16_t timingGap = DEFAULT_LETTER_GAP_MS;
+
+  // Hardware timing variables (configurable via UI)
+  uint16_t latchDelayUs = DEFAULT_LATCH_DELAY_US;
+  uint16_t softShiftDelayUs = DEFAULT_SOFT_SHIFT_DELAY_US;
+  uint16_t muxDelayUs = DEFAULT_MUX_DELAY_US;
+  uint16_t capacitanceDelayUs = DEFAULT_CAPACITANCE_DELAY_US;
 
   uint32_t lastRawMask = 0;
   uint32_t stableMask = 0;

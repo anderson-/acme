@@ -253,6 +253,11 @@ void GloveApp::handleCommand(uint8_t num, const char* cmd, JsonVariant data) {
     device.setTimings(data["on"] | DEFAULT_STEP_ON_MS,
                       data["off"] | DEFAULT_STEP_OFF_MS,
                       data["gap"] | DEFAULT_LETTER_GAP_MS);
+  } else if (strcmp(cmd, "set_hardware_timings") == 0) {
+    device.setHardwareTimings(data["latch_delay_us"] | DEFAULT_LATCH_DELAY_US,
+                              data["soft_shift_delay_us"] | DEFAULT_SOFT_SHIFT_DELAY_US,
+                              data["mux_delay_us"] | DEFAULT_MUX_DELAY_US,
+                              data["capacitance_delay_us"] | DEFAULT_CAPACITANCE_DELAY_US);
   } else if (strcmp(cmd, "set_animation") == 0) {
     String name = data["name"] | "off";
     uint32_t color = data["color"] | 0x22C1B0;

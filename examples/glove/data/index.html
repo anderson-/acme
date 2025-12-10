@@ -66,6 +66,32 @@
               </div>
             </div>
             <div class="control">
+              <div class="label">Hardware Timings (μs)</div>
+              <div class="row" style="flex-direction: column; gap: 8px;">
+                <div class="row" style="align-items: center; gap: 8px;">
+                  <label style="min-width: 120px; font-size: 12px;">Latch Delay:</label>
+                  <input id="latch-delay-slider" type="range" min="10" max="100" value="40" style="flex: 1;">
+                  <span id="latch-delay-label" style="min-width: 35px; text-align: right;">40μs</span>
+                </div>
+                <div class="row" style="align-items: center; gap: 8px;">
+                  <label style="min-width: 120px; font-size: 12px;">Soft Shift Delay:</label>
+                  <input id="soft-shift-delay-slider" type="range" min="5" max="50" value="10" style="flex: 1;">
+                  <span id="soft-shift-delay-label" style="min-width: 35px; text-align: right;">10μs</span>
+                </div>
+                <div class="row" style="align-items: center; gap: 8px;">
+                  <label style="min-width: 120px; font-size: 12px;">Mux Delay:</label>
+                  <input id="mux-delay-slider" type="range" min="5" max="50" value="10" style="flex: 1;">
+                  <span id="mux-delay-label" style="min-width: 35px; text-align: right;">10μs</span>
+                </div>
+                <div class="row" style="align-items: center; gap: 8px;">
+                  <label style="min-width: 120px; font-size: 12px;">Capacitance Delay:</label>
+                  <input id="capacitance-delay-slider" type="range" min="1" max="20" value="5" style="flex: 1;">
+                  <span id="capacitance-delay-label" style="min-width: 35px; text-align: right;">5μs</span>
+                </div>
+                <button id="hardware-timing-apply" class="btn ghost">Apply Hardware Timings</button>
+              </div>
+            </div>
+            <div class="control">
               <div class="label">LED Animation</div>
               <div class="row">
                 <select id="anim-select" class="field">

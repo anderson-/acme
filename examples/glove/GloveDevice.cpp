@@ -2,24 +2,24 @@
 #include <SPIFFS.h>
 
 // helpers
-static inline void softShiftOut(uint8_t dataPin, uint8_t clockPin, uint8_t bitOrder, uint8_t value) {
+static inline void softShiftOut(uint8_t dataPin, uint8_t clockPin, uint8_t bitOrder, uint8_t value, uint16_t delayUs) {
   for (int i = 0; i < 8; i++) {
     uint8_t bitValue = (bitOrder == MSBFIRST)
       ? ((value & (1 << (7 - i))) ? HIGH : LOW)
       : ((value & (1 << i)) ? HIGH : LOW);
     digitalWrite(dataPin, bitValue);
     digitalWrite(clockPin, HIGH);
-    delayMicroseconds(SOFT_SHIFT_DELAY_US);
+    delayMicroseconds(delayUs);
     digitalWrite(clockPin, LOW);
-    delayMicroseconds(SOFT_SHIFT_DELAY_US);
+    delayMicroseconds(delayUs);
   }
 }
 
-static inline uint32_t readCapacitance(gpio_num_t pin) {
+static inline uint32_t readCapacitance(gpio_num_t pin, uint16_t delayUs) {
   gpio_reset_pin(pin);
   gpio_set_direction(pin, GPIO_MODE_OUTPUT);
   gpio_set_level(pin, 0);
-  ets_delay_us(CAPACITANCE_DELAY_US);
+  ets_delay_us(delayUs);
   gpio_set_direction(pin, GPIO_MODE_INPUT);
 
   uint32_t cycles = 0;
@@ -176,6 +176,23 @@ void GloveDevice::setTimings(uint16_t onMs, uint16_t offMs, uint16_t gapMs) {
   sendStatus("timings");
 }
 
+void GloveDevice::setHardwareTimings(uint16_t latchUs, uint16_t softShiftUs, uint16_t muxUs, uint16_t capacitanceUs) {
+  // Validate timing values
+  if (latchUs < MIN_LATCH_DELAY_US || latchUs > MAX_LATCH_DELAY_US ||
+      softShiftUs < MIN_SOFT_SHIFT_DELAY_US || softShiftUs > MAX_SOFT_SHIFT_DELAY_US ||
+      muxUs < MIN_MUX_DELAY_US || muxUs > MAX_MUX_DELAY_US ||
+      capacitanceUs < MIN_CAPACITANCE_DELAY_US || capacitanceUs > MAX_CAPACITANCE_DELAY_US) {
+    log("Invalid hardware timing values - rejected");
+    return;
+  }
+
+  latchDelayUs = latchUs;
+  softShiftDelayUs = softShiftUs;
+  muxDelayUs = muxUs;
+  capacitanceDelayUs = capacitanceUs;
+  sendStatus("hardware_timings");
+}
+
 void GloveDevice::setAnimation(const String& name, uint32_t rgb, uint16_t speedMs, uint8_t count) {
   CRGB color((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
   if (name == "off") ring.off();
@@ -248,10 +265,10 @@ void GloveDevice::shiftZero() { writeOutputs(0); }
 
 void GloveDevice::writeOutputs(uint16_t mask) {
   digitalWrite(PIN_LATCH, LOW);
-  delayMicroseconds(LATCH_DELAY_US);
-  softShiftOut(PIN_DATA, PIN_CLOCK, MSBFIRST, (uint8_t)(mask >> 8));
-  softShiftOut(PIN_DATA, PIN_CLOCK, MSBFIRST, (uint8_t)(mask & 0xFF));
-  delayMicroseconds(LATCH_DELAY_US);
+  delayMicroseconds(latchDelayUs);
+  softShiftOut(PIN_DATA, PIN_CLOCK, MSBFIRST, (uint8_t)(mask >> 8), softShiftDelayUs);
+  softShiftOut(PIN_DATA, PIN_CLOCK, MSBFIRST, (uint8_t)(mask & 0xFF), softShiftDelayUs);
+  delayMicroseconds(latchDelayUs);
   digitalWrite(PIN_LATCH, HIGH);
   if (mask != lastOutputMask) {
     lastOutputMask = mask;
@@ -473,7 +490,7 @@ uint32_t GloveDevice::scanInputs() {
     digitalWrite(PIN_S0, r0);
     digitalWrite(PIN_S1, r1);
     digitalWrite(PIN_S2, r2);
-    delayMicroseconds(MUX_DELAY_US);
+    delayMicroseconds(muxDelayUs);
     highs += readAndWrite(bits, i);
     highs += readAndWrite(bits, i + 8);
   }
@@ -483,7 +500,7 @@ uint32_t GloveDevice::scanInputs() {
 
 uint8_t GloveDevice::readAndWrite(uint32_t& bits, uint8_t index) {
   gpio_num_t pin = (index < 8) ? (gpio_num_t)PIN_Z0 : (gpio_num_t)PIN_Z1;
-  uint32_t cycles = readCapacitance(pin);
+  uint32_t cycles = readCapacitance(pin, capacitanceDelayUs);
   capacitanceValues[index] = cycles;
   bool hit = cycles >= touchThreshold;
   bitWrite(bits, index, hit);
@@ -528,7 +545,7 @@ void GloveDevice::runSequencer(uint32_t now) {
 }
 
 void GloveDevice::sendStatus(const char* reason) {
-  StaticJsonDocument<256> doc;
+  StaticJsonDocument<512> doc;
   doc["type"] = "status";
   doc["reason"] = reason;
   doc["mode"] = mode;
@@ -539,6 +556,14 @@ void GloveDevice::sendStatus(const char* reason) {
   doc["buffer"] = typingBuffer;
   doc["debug_streaming"] = debugStreaming;
   doc["free_memory"] = ESP.getFreeHeap();
+
+  // Include hardware timing values
+  JsonObject timings = doc.createNestedObject("hardware_timings");
+  timings["latch_delay_us"] = latchDelayUs;
+  timings["soft_shift_delay_us"] = softShiftDelayUs;
+  timings["mux_delay_us"] = muxDelayUs;
+  timings["capacitance_delay_us"] = capacitanceDelayUs;
+
   push(doc);
 }
 
