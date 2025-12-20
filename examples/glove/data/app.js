@@ -997,3 +997,19 @@ initGrids();
 initHandPanel();
 renderAlphabet();
 connectWS();
+
+function initializeChat() {
+  const initialMessages = [
+    { from: 'device', text: 'bom dia' },
+    { from: 'device', text: 'tudo bem?' },
+    { from: 'me', text: 'tudo bem, e você?' },
+  ];
+
+  initialMessages.forEach((msg, index) => {
+    setTimeout(() => {
+      appendChat(msg);
+    }, index * 800);
+  });
+}
+
+setTimeout(initializeChat, 100);

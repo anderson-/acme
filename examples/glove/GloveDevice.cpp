@@ -32,6 +32,12 @@ static inline uint32_t readCapacitance(gpio_num_t pin, uint16_t delayUs) {
   return cycles;
 }
 
+static inline uint32_t readCapacitanceStable(gpio_num_t pin, uint16_t delayUs) {
+  uint32_t a = readCapacitance(pin, delayUs);
+  uint32_t b = readCapacitance(pin, delayUs);
+  return (a > b) ? a : b;
+}
+
 void GloveDevice::beginRingOnly() {
   ring.begin();
   ringReady = true;
@@ -491,6 +497,7 @@ uint32_t GloveDevice::scanInputs() {
     digitalWrite(PIN_S1, r1);
     digitalWrite(PIN_S2, r2);
     delayMicroseconds(muxDelayUs);
+    delayMicroseconds(muxDelayUs);
     highs += readAndWrite(bits, i);
     highs += readAndWrite(bits, i + 8);
   }
@@ -500,7 +507,7 @@ uint32_t GloveDevice::scanInputs() {
 
 uint8_t GloveDevice::readAndWrite(uint32_t& bits, uint8_t index) {
   gpio_num_t pin = (index < 8) ? (gpio_num_t)PIN_Z0 : (gpio_num_t)PIN_Z1;
-  uint32_t cycles = readCapacitance(pin, capacitanceDelayUs);
+  uint32_t cycles = readCapacitanceStable(pin, capacitanceDelayUs);
   capacitanceValues[index] = cycles;
   bool hit = cycles >= touchThreshold;
   bitWrite(bits, index, hit);
