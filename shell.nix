@@ -2,7 +2,6 @@
 
 let
   pythonEnv = pkgs.python311.withPackages (ps: with ps; [
-    pip
     virtualenv
     pyserial
     pyyaml
