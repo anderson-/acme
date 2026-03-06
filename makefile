@@ -24,10 +24,10 @@ AC_VER  ?= 1.3.1
 SO      ?= ${DEFAULT_SO}
 AC_BASE ?= https://downloads.arduino.cc/arduino-cli
 AC_TAR  := ${AC_BASE}/arduino-cli_${AC_VER}_${SO}.tar.gz
-ADATA   := ${PWD}/bin/.arduino15
-ALIBS   := ${PWD}/bin
+ADATA   := ${MKDIR}/bin/.arduino15
+ALIBS   := ${MKDIR}/bin
 CFG     ?= ${ADATA}/arduino-cli.yaml
-ARDUINO := ${PWD}/bin/arduino-cli
+ARDUINO := ${MKDIR}/bin/arduino-cli
 ARDUINO := ARDUINO_DATA_DIR=${ADATA} ${ARDUINO} --config-file ${CFG}
 SRC     ?= main
 PROP    ?= ${SRC}/project.yaml
@@ -47,32 +47,32 @@ FLAGS   := ${FLAGS} -DSTASSID="$(SSID)"
 FLAGS   := ${FLAGS} -DSTAPSK="$(PSK)"
 RAMFS   ?= /dev/shm2  # disabled
 RAMDISK ?= ${RAMFS}/quickbuild
-BUILD   ?= .build/${CORE}/${SRC}
+BUILD   ?= ${MKDIR}/.build/${CORE}/${SRC}
 OBJ     := ${BUILD}/*.ino.elf
 OTAIP   ?=
 OTAPORT ?=
 BAUD    ?= 115200
 PORT    ?= /dev/ttyUSB0
-VENV    := . .venv/bin/activate
+VENV    := . ${MKDIR}/.venv/bin/activate
 PY      := ${VENV} && python3
-OTA     := bin/.arduino15/packages/${CORE}/hardware/${CORE}/*/tools/espota.py
-MKFS    := bin/.arduino15/packages/${CORE}/tools/mkspiffs/*/mkspiffs
+OTA     := ${MKDIR}/bin/.arduino15/packages/${CORE}/hardware/${CORE}/*/tools/espota.py
+MKFS    := ${MKDIR}/bin/.arduino15/packages/${CORE}/tools/mkspiffs/*/mkspiffs
 
 .ONESHELL:
 
 shell:
-	nix-shell
+	nix-shell ${MKDIR}
 
-.venv:
-	virtualenv -p python3 .venv
+${MKDIR}/.venv:
+	virtualenv -p python3 ${MKDIR}/.venv
 
-bin:
+${MKDIR}/bin:
 	${MAKE} deps
 	if [ -e ${RAMFS} ]; then
 		mkdir -p ${RAMDISK}/bin
-		ln -s ${RAMDISK}/bin bin
+		ln -s ${RAMDISK}/bin ${MKDIR}/bin
 	else
-		mkdir -p bin
+		mkdir -p ${MKDIR}/bin
 	fi
 	mkdir -p ${ADATA}
 	ADATA=${ADATA}; ADATA=$${ADATA//\//\\\/}; \
@@ -81,11 +81,11 @@ bin:
 	ALIBS=${ALIBS}; ALIBS=$${ALIBS//\//\\\/}; \
 	sed -i "s/  user:.*/  user: $${ALIBS}/g" ${CFG}
 
-bin/arduino-cli: bin
-	curl -fsSL ${AC_TAR} | tar -xz -C ${PWD}/bin/
-	touch bin/arduino-cli
+${MKDIR}/bin/arduino-cli: ${MKDIR}/bin
+	curl -fsSL ${AC_TAR} | tar -xz -C ${MKDIR}/bin/
+	touch ${MKDIR}/bin/arduino-cli
 
-${ADATA}/package_index.json: bin/arduino-cli
+${ADATA}/package_index.json: ${MKDIR}/bin/arduino-cli
 	${ARDUINO} core update-index
 	touch ${ADATA}/package_index.json
 
@@ -107,20 +107,20 @@ core: ${ADATA}/packages/${CORE}
 ${BUILD}:
 	if [ -e ${RAMFS} ]; then
 		mkdir -p ${RAMDISK}/build
-		ln -s ${RAMDISK}/build ${BUILD}
+		ln -s ${RAMDISK}/build ${MKDIR}/${BUILD}
 	else
-		mkdir -p ${BUILD}
+		mkdir -p ${MKDIR}/${BUILD}
 	fi
 
-.libs-downloaded: ${PROP}
+${MKDIR}/.libs-downloaded: ${PROP}
 	@ ${VENV} && cat ${PROP} | yq -Y .libs | tr -d ' -' | \
 		while read LIB; do
 			NAME=$$(echo $$LIB | cut -d@ -f1)
 			VERSION=$$(echo $$LIB | cut -d@ -f2)
-			if [ ! -e ${PWD}/bin/libraries/${NAME} ]; then
+			if [ ! -e ${MKDIR}/bin/libraries/${NAME} ]; then
 				${ARDUINO} lib install $$NAME@$$VERSION
 			else
-				IVER=$$(cat ${PWD}/bin/libraries/$$NAME/library.properties \
+				IVER=$$(cat ${MKDIR}/bin/libraries/$$NAME/library.properties \
 					| grep version | cut -d= -f2)
 				if [ ! "$$IVER" = "$$VERSION" ]; then
 					${ARDUINO} lib install $$NAME@$$VERSION
@@ -128,30 +128,30 @@ ${BUILD}:
 			fi
 			if [ "$$NAME" = "Tiny4kOLED" ]; then
 				# find string avr/pgmspace in files and replace with pgmspace
-				find ${PWD}/bin/libraries/$$NAME -type f -exec sed -i \
+				find ${MKDIR}/bin/libraries/$$NAME -type f -exec sed -i \
 					-e 's/avr\/pgmspace/pgmspace/g' {} \;
 			fi
 		done
-	@ touch .libs-downloaded
+	@ touch ${MKDIR}/.libs-downloaded
 
 .PHONY: download-libs
-download-libs: .libs-downloaded
+download-libs: ${MKDIR}/.libs-downloaded
 
-${OBJ}: .libs-downloaded ${BUILD} ${ADATA}/packages/${CORE} ${FILES} wifi.yaml
+${OBJ}: download-libs ${BUILD} ${ADATA}/packages/${CORE} ${FILES} ${WIFI}
 	${MAKE} checksrc
 	time ${ARDUINO} compile --fqbn ${FQBN} \
 		$(foreach include, \
 	 		$(shell ${VENV} && cat ${PROP} | yq -Y .include | tr -d ' -'), \
 	 	  --libraries $(include)) \
 	 	--build-property 'compiler.cpp.extra_flags=${FLAGS}' \
-	 	--build-path $$(pwd)/${BUILD} \
+	 	--build-path ${BUILD} \
 	 	${SRC} -v
 
 .PHONY: build
 build: ${OBJ}
 
 .PHONY: deps
-deps: .venv
+deps: ${MKDIR}/.venv
 
 flash: ${OBJ}
 	time ${ARDUINO} upload -p ${PORT} --fqbn ${FQBN} -i ${OBJ} ${SRC} -v
@@ -162,10 +162,10 @@ clean:
 
 .PHONY: clean-all
 clean-all: clean
-	rm -rf bin
-	rm -rf .build
+	rm -rf ${MKDIR}/bin
+	rm -rf ${MKDIR}/.build
 	if [ -e ${RAMFS} ]; then
-		rm -rf ${RAMDISK}
+		rm -rf ${MKDIR}/${RAMDISK}
 	fi
 
 .PHONY: deploy
@@ -225,7 +225,7 @@ ota-fs: ${BUILD}/img.bin
 	${PY} ${OTA} -i "$${OTAIP}" -p $${OTAPORT} -s -f ${BUILD}/img.bin
 
 cat-serial:
-	python -m serial.tools.miniterm ${PORT} 115200
+	python3 -m serial.tools.miniterm ${PORT} 115200
 
 serve-html:
 	cd ${SRC}/data && python3 -m http.server 8000
