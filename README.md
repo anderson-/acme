@@ -109,7 +109,7 @@ make deploy                         # equivalent to DEV= make build
 ```sh
 make find                           # discover device IP and OTA port
 make ota                            # auto-discover and flash firmware
-# make ota OTAIP=192.168.1.100 OTAPORT=8266
+# make ota OTAIP=192.168.1.100 OTAPORT=3232 # use port 8266 for esp8266
 ```
 
 ---
@@ -120,7 +120,7 @@ Place your files in `data/` inside your project directory, then:
 ```sh
 make fs                             # build the SPIFFS image
 make ota-fs                         # upload via OTA (auto-discover)
-# make ota-fs OTAIP=192.168.1.100 OTAPORT=8266
+# make ota-fs OTAIP=192.168.1.100 OTAPORT=3232 # use port 8266 for esp8266
 ```
 
 ---
