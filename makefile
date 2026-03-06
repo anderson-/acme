@@ -204,6 +204,9 @@ monitor-hex:
 list-boards:
 	${ARDUINO} board listall
 
+list-usb:
+	${ARDUINO} board list
+
 ${BUILD}/img.bin: ${SRC}/data/*
 	SIZE=$$(cat ${BUILD}/partitions.csv | grep spiffs | cut -d, -f5)
 	${MKFS} -c ${SRC}/data -s $${SIZE} ${BUILD}/img.bin
@@ -229,3 +232,18 @@ cat-serial:
 
 serve-html:
 	cd ${SRC}/data && python3 -m http.server 8000
+
+EXAMPLES := $(wildcard examples/*)
+EXAMPLE_NAMES := $(notdir $(EXAMPLES))
+
+define EXAMPLE_TARGETS
+.PHONY: build-$(1)
+build-$(1):
+	$${MAKE} build SRC=examples/$(1)
+
+.PHONY: flash-$(1)
+flash-$(1):
+	$${MAKE} flash SRC=examples/$(1)
+endef
+
+$(foreach example,$(EXAMPLE_NAMES),$(eval $(call EXAMPLE_TARGETS,$(example))))

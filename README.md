@@ -16,6 +16,7 @@ git submodule add https://github.com/anderson-/acme.git .acme
 ```make
 MKDIR := .acme
 SRC   := ${PWD}
+# WIFI  := ${PWD}/wifi.yaml
 -include ${MKDIR}/makefile
 ```
 
@@ -25,6 +26,7 @@ In your project, create a `Makefile`:
 ```make
 MKDIR := ../acme
 SRC   := ${PWD}
+# WIFI  := ${PWD}/wifi.yaml
 -include ${MKDIR}/makefile
 ```
 
@@ -37,7 +39,18 @@ Your project needs at minimum:
 my-project/
 ├── my-project.ino   # must match the directory name
 ├── project.yaml
-├── wifi.yaml        # optional, only if using Wi-Fi
+├── wifi.yaml        # optional
+└── makefile
+```
+
+or 
+
+```
+my-project/
+├── main                 # SRC   := ${PWD}/main
+│   ├── main.ino
+│   ├── project.yaml
+│   └── wifi.yaml        # optional
 └── makefile
 ```
 
@@ -79,7 +92,8 @@ const char* password = STAPSK;
 
 ## Building and flashing
 ```sh
-make build                          # compile
+make build                            # compile
+make list-usb                         # find usb device
 make flash PORT=/dev/tty.usbmodem101  # flash via serial
 ```
 
@@ -95,7 +109,7 @@ make deploy                         # equivalent to DEV= make build
 ```sh
 make find                           # discover device IP and OTA port
 make ota                            # auto-discover and flash firmware
-make ota OTAIP=192.168.1.100 OTAPORT=8266   # or specify manually
+# make ota OTAIP=192.168.1.100 OTAPORT=8266
 ```
 
 ---
@@ -106,7 +120,7 @@ Place your files in `data/` inside your project directory, then:
 ```sh
 make fs                             # build the SPIFFS image
 make ota-fs                         # upload via OTA (auto-discover)
-make ota-fs OTAIP=192.168.1.100 OTAPORT=8266
+# make ota-fs OTAIP=192.168.1.100 OTAPORT=8266
 ```
 
 ---
@@ -124,8 +138,10 @@ Default baud rate is `115200`. Override with `BAUD=9600`.
 
 ## Running the examples
 ```sh
-make build SRC=examples/blink
-make flash SRC=examples/blink PORT=/dev/tty.usbmodem101
+make build-blink
+# make build SRC=examples/blink
+make flash-blink PORT=/dev/tty.usbmodem101
+# make flash SRC=examples/blink PORT=/dev/tty.usbmodem101
 ```
 
 ---
