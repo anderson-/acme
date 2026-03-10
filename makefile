@@ -193,14 +193,6 @@ find:
 	OTAPORT=$$(${SCAN_PORT})
 	echo "Found: $${OTAIP}@$${OTAPORT}"
 
-monitor:
-	stty ${BAUD} -F ${PORT} raw -echo
-	cat ${PORT}
-
-monitor-hex:
-	stty ${BAUD} -F ${PORT} raw -echo
-	cat ${PORT} | hexdump -C
-
 list-boards:
 	${ARDUINO} board listall
 
@@ -228,7 +220,7 @@ ota-fs: ${BUILD}/img.bin
 	${PY} ${OTA} -i "$${OTAIP}" -p $${OTAPORT} -s -f ${BUILD}/img.bin
 
 cat-serial:
-	python3 -m serial.tools.miniterm ${PORT} 115200
+	python3 -m serial.tools.miniterm --exit-char 3 ${PORT} ${BAUD}
 
 serve-html:
 	cd ${SRC}/data && python3 -m http.server 8000
