@@ -194,15 +194,16 @@ flash: ${STAMP}
 
 .PHONY: clean
 clean:
-	rm -rf ${BUILD}
+	if [ -d ${BUILD} ]; then
+		rm -rf ${BUILD}
+	fi
 
 .PHONY: clean-all
 clean-all: clean
-	rm -rf ${MKDIR}/bin
 	rm -rf ${MKDIR}/.build
-	if [ -e ${RAMFS} ]; then
-		rm -rf ${MKDIR}/${RAMDISK}
-	fi
+
+clean-bin:
+	rm -rf ${MKDIR}/bin
 
 .PHONY: deploy
 deploy:
@@ -220,7 +221,7 @@ ota: ${STAMP}
 			OTAPORT=$$(${SCAN_PORT})
 		fi
 	fi
-	${PY} ${OTA} -i "$${OTAIP}" -p $${OTAPORT} -f ${BUILD}/*.ino.bin
+	time ${PY} ${OTA} -i "$${OTAIP}" -p $${OTAPORT} -f ${BUILD}/*.ino.bin
 
 find:
 	${SCAN}
@@ -253,7 +254,7 @@ ota-fs: ${BUILD}/img.bin
 			OTAPORT=$$(${SCAN_PORT})
 		fi
 	fi
-	${PY} ${OTA} -i "$${OTAIP}" -p $${OTAPORT} -s -f ${BUILD}/img.bin
+	time ${PY} ${OTA} -i "$${OTAIP}" -p $${OTAPORT} -s -f ${BUILD}/img.bin
 
 cat-serial:
 	python3 -m serial.tools.miniterm --exit-char 3 ${PORT} ${BAUD}
