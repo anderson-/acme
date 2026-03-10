@@ -113,20 +113,53 @@ ${BUILD}:
 	fi
 
 ${MKDIR}/.libs-downloaded: ${PROP}
-	@ ${VENV} && cat ${PROP} | yq -Y .libs | tr -d ' -' | \
+	@ ${VENV} && cat ${PROP} | yq -Y .libs | sed 's/- //' | \
 		while read LIB; do
 			NAME=$$(echo $$LIB | cut -d@ -f1)
 			VERSION=$$(echo $$LIB | cut -d@ -f2)
-			if [ ! -e ${MKDIR}/bin/libraries/${NAME} ]; then
-				${ARDUINO} lib install $$NAME@$$VERSION
+			
+			# Check if this is a git URL
+			if [[ "$$NAME" == *.git ]]; then
+				# Handle git repository
+				REPO_URL=$$NAME
+				LIB_NAME=$$(basename $$REPO_URL .git)
+				LIB_DIR="${MKDIR}/bin/libraries/$$LIB_NAME"
+				
+				if [ ! -e $$LIB_DIR ]; then
+					echo "Cloning $$REPO_URL@$$VERSION to $$LIB_NAME" >&2
+					git clone --depth 1 $$REPO_URL $$LIB_DIR
+				else
+					# Check if we need to update version
+					if [ -f $$LIB_DIR/library.properties ]; then
+						IVER=$$(cat $$LIB_DIR/library.properties | grep version | cut -d= -f2)
+						if [ ! "$$IVER" = "$$VERSION" ]; then
+							echo "Updating $$LIB_NAME from $$IVER to $$VERSION" >&2
+							cd $$LIB_DIR && git fetch
+						else 
+							echo "Library $$LIB_NAME already @$$VERSION"
+						fi
+					else
+						echo "No library.properties, just checkout the version"
+						cd $$LIB_DIR && git fetch
+					fi
+				fi
 			else
-				IVER=$$(cat ${MKDIR}/bin/libraries/$$NAME/library.properties \
-					| grep version | cut -d= -f2)
-				if [ ! "$$IVER" = "$$VERSION" ]; then
+				# Handle regular arduino library
+				if [ ! -e ${MKDIR}/bin/libraries/$$NAME ]; then
+					echo "Installing $$NAME@$$VERSION" >&2
 					${ARDUINO} lib install $$NAME@$$VERSION
+				else
+					IVER=$$(cat ${MKDIR}/bin/libraries/$$NAME/library.properties \
+						| grep version | cut -d= -f2)
+					if [ ! "$$IVER" = "$$VERSION" ]; then
+						echo "Updating $$NAME from $$IVER to $$VERSION" >&2
+						${ARDUINO} lib install $$NAME@$$VERSION
+					fi
 				fi
 			fi
-			if [ "$$NAME" = "Tiny4kOLED" ]; then
+			
+			# Apply special fixes if needed
+			if [ "$$NAME" = "Tiny4kOLED" ] || [ "$$LIB_NAME" = "Tiny4kOLED" ]; then
 				# find string avr/pgmspace in files and replace with pgmspace
 				find ${MKDIR}/bin/libraries/$$NAME -type f -exec sed -i \
 					-e 's/avr\/pgmspace/pgmspace/g' {} \;
