@@ -1,4 +1,4 @@
-SYSDEPS := python3 pip3 bash rsync curl
+SYSDEPS := python3 pip3 bash rsync curl git
 _CHECK  := $(foreach exec,$(SYSDEPS),\
 			$(if $(shell which $(exec)),,$(error "No $(exec) in PATH")))
 SHELL   := /bin/bash
@@ -48,7 +48,9 @@ FLAGS   := ${FLAGS} -DSTAPSK="$(PSK)"
 RAMFS   ?= /dev/shm2  # disabled
 RAMDISK ?= ${RAMFS}/quickbuild
 BUILD   ?= ${MKDIR}/.build/${CORE}/${SRC}
-OBJ     := ${BUILD}/*.ino.elf
+SKETCH  := $(notdir ${SRC})
+OBJ     := ${BUILD}/${SKETCH}.ino.elf
+STAMP   := ${BUILD}/.compile.stamp
 OTAIP   ?=
 OTAPORT ?=
 BAUD    ?= 115200
@@ -167,10 +169,9 @@ ${MKDIR}/.libs-downloaded: ${PROP}
 		done
 	@ touch ${MKDIR}/.libs-downloaded
 
-.PHONY: download-libs
 download-libs: ${MKDIR}/.libs-downloaded
 
-${OBJ}: download-libs ${BUILD} ${ADATA}/packages/${CORE} ${FILES} ${WIFI}
+${STAMP}: ${MKDIR}/.libs-downloaded ${BUILD} ${ADATA}/packages/${CORE} ${FILES} ${WIFI}
 	${MAKE} checksrc
 	time ${ARDUINO} compile --fqbn ${FQBN} \
 		$(foreach include, \
@@ -179,14 +180,16 @@ ${OBJ}: download-libs ${BUILD} ${ADATA}/packages/${CORE} ${FILES} ${WIFI}
 	 	--build-property 'compiler.cpp.extra_flags=${FLAGS}' \
 	 	--build-path ${BUILD} \
 	 	${SRC} -v
+	@test -f ${OBJ}
+	@touch ${STAMP}
 
 .PHONY: build
-build: ${OBJ}
+build: ${STAMP}
 
 .PHONY: deps
 deps: ${MKDIR}/.venv
 
-flash: ${OBJ}
+flash: ${STAMP}
 	time ${ARDUINO} upload -p ${PORT} --fqbn ${FQBN} -i ${OBJ} ${SRC} -v
 
 .PHONY: clean
@@ -206,7 +209,7 @@ deploy:
 	touch ${SRC}/*.ino
 	DEV= ${MAKE} -s build
 
-ota: ${OBJ}
+ota: ${STAMP}
 	@ if [ -z ${OTAIP} -o -z ${OTAPORT} ]; then
 		${SCAN}
 		${SCAN_DEV}
