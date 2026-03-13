@@ -176,12 +176,12 @@ ${STAMP}: ${MKDIR}/.libs-downloaded ${BUILD} ${ADATA}/packages/${CORE} ${FILES} 
 	time ${ARDUINO} compile --fqbn ${FQBN} \
 		$(foreach include, \
 	 		$(shell ${VENV} && cat ${PROP} | yq -Y .include | tr -d ' -'), \
-	 	  --libraries $(include)) \
+	 	  --libraries ${PWD}/$(include)) \
 	 	--build-property 'compiler.cpp.extra_flags=${FLAGS}' \
 	 	--build-path ${BUILD} \
-	 	${SRC} -v
-	@test -f ${OBJ}
-	@touch ${STAMP}
+	 	${SRC} -v && \
+	test -f ${OBJ} && \
+	touch ${STAMP}
 
 .PHONY: build
 build: ${STAMP}
