@@ -40,8 +40,12 @@ FLAGS   ?=
 DEV     ?= 1
 DEFINES := $(if ${DEV},DEVELOPMENT,)
 RWC      = $(foreach d,$(wildcard $1*),$(call RWC,$d/,$2) \
-  			$(filter $(subst *,%,$2),$d))
-FILES   := $(call RWC,${SRC},*.c *.cpp *.h *.hpp *.ino)
+			$(filter $(subst *,%,$2),$d))
+SRC_FILES := $(call RWC,${SRC},*.c *.cpp *.h *.hpp *.ino)
+INCLUDE_LIST := $(shell yq -r '.include[]? // empty' "${PROP}")
+INCLUDE_FILES := $(foreach include,$(INCLUDE_LIST), \
+	$(call RWC,${PWD}/$(include),*.c *.cpp *.h *.hpp))
+FILES := ${SRC_FILES} ${INCLUDE_FILES}
 FLAGS   := ${FLAGS} $(foreach def, ${DEFINES}, -D$(def))
 FLAGS   := ${FLAGS} -DSTASSID="$(SSID)"
 FLAGS   := ${FLAGS} -DSTAPSK="$(PSK)"
@@ -174,9 +178,8 @@ download-libs: ${MKDIR}/.libs-downloaded
 ${STAMP}: ${MKDIR}/.libs-downloaded ${BUILD} ${ADATA}/packages/${CORE} ${FILES} ${WIFI}
 	${MAKE} checksrc
 	time ${ARDUINO} compile --fqbn ${FQBN} \
-		$(foreach include, \
-	 		$(shell ${VENV} && cat ${PROP} | yq -Y .include | tr -d ' -'), \
-	 	  --libraries ${PWD}/$(include)) \
+		$(foreach include,$(INCLUDE_LIST), \
+		  --libraries ${PWD}/$(include)) \
 	 	--build-property 'compiler.cpp.extra_flags=${FLAGS}' \
 	 	--build-path ${BUILD} \
 	 	${SRC} -v && \
