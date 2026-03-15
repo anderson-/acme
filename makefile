@@ -42,11 +42,14 @@ DEFINES := $(if ${DEV},DEVELOPMENT,)
 RWC      = $(foreach d,$(wildcard $1*),$(call RWC,$d/,$2) \
 			$(filter $(subst *,%,$2),$d))
 SRC_FILES := $(call RWC,${SRC},*.c *.cpp *.h *.hpp *.ino)
-INCLUDE_LIST := $(shell yq -r '.include[]? // empty' "${PROP}")
-INCLUDE_FILES := $(foreach include,$(INCLUDE_LIST), \
-	$(call RWC,${PWD}/$(include),*.c *.cpp *.h *.hpp))
-FILES := ${SRC_FILES} ${INCLUDE_FILES}
+LOCAL_LIBS := $(shell yq -r '.local_libs[]? // empty' "${PROP}")
+DEFINES_LIST := $(shell yq -r '.defines[]? // empty' "${PROP}")
+SYMLINKS := $(shell yq -r '.symlinks[]? // empty' "${PROP}")
+LOCAL_LIB_FILES := $(foreach lib,$(LOCAL_LIBS), \
+	$(call RWC,${PWD}/$(lib),*.c *.cpp *.h *.hpp))
+FILES := ${SRC_FILES} ${LOCAL_LIB_FILES}
 FLAGS   := ${FLAGS} $(foreach def, ${DEFINES}, -D$(def))
+FLAGS   := ${FLAGS} $(foreach def, ${DEFINES_LIST}, -D$(def))
 FLAGS   := ${FLAGS} -DSTASSID="$(SSID)"
 FLAGS   := ${FLAGS} -DSTAPSK="$(PSK)"
 RAMFS   ?= /dev/shm2  # disabled
@@ -177,14 +180,24 @@ download-libs: ${MKDIR}/.libs-downloaded
 
 ${STAMP}: ${MKDIR}/.libs-downloaded ${BUILD} ${ADATA}/packages/${CORE} ${FILES} ${WIFI}
 	${MAKE} checksrc
+	$(foreach symlink,$(SYMLINKS), \
+		ln -s ${PWD}/$(symlink)/* ${PWD}/${SRC} && \
+	)
 	time ${ARDUINO} compile --fqbn ${FQBN} \
-		$(foreach include,$(INCLUDE_LIST), \
-		  --libraries ${PWD}/$(include)) \
+		$(foreach lib,$(LOCAL_LIBS), \
+		  --libraries ${PWD}/$(lib)) \
 	 	--build-property 'compiler.cpp.extra_flags=${FLAGS}' \
+		--build-property 'compiler.c.extra_flags=${FLAGS}' \
 	 	--build-path ${BUILD} \
 	 	${SRC} -v && \
 	test -f ${OBJ} && \
-	touch ${STAMP}
+	find ${PWD}/${SRC} -type l -delete && \
+	touch ${STAMP} || { \
+		echo "Build failed, removing stamp"; \
+		rm ${STAMP}; \
+		find ${PWD}/${SRC} -type l -delete; \
+		exit 1; \
+	}
 
 .PHONY: build
 build: ${STAMP}
@@ -200,6 +213,7 @@ clean:
 	if [ -d ${BUILD} ]; then
 		rm -rf ${BUILD}
 	fi
+	find ${PWD}/${SRC} -type l -delete
 
 .PHONY: clean-all
 clean-all: clean
