@@ -1,6 +1,7 @@
 .venv/
 .build/
 .vscode/
+.cache/
 bin/
 wifi.yaml
 .libs-downloaded

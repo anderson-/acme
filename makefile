@@ -1,85 +1,124 @@
-SYSDEPS := python3 pip3 bash rsync curl git
-_CHECK  := $(foreach exec,$(SYSDEPS),\
-			$(if $(shell which $(exec)),,$(error "No $(exec) in PATH")))
-SHELL   := /bin/bash
-UNAME_S := $(shell uname -s)
-UNAME_M := $(shell uname -m)
-TIMEOUT := 0.2
-ifeq ($(UNAME_S),Darwin)
-DEFAULT_SO := $(if $(filter arm64 aarch64,$(UNAME_M)),macOS_ARM64,macOS_64bit)
-SCAN      := timeout ${TIMEOUT} dns-sd -B _arduino._tcp > /tmp/scan
-SCAN_DEV  := timeout ${TIMEOUT} dns-sd -Gv4 $$(cat /tmp/scan | grep local | tr -s ' ' | cut -d' ' -f 7).local. > /tmp/scan
-SCAN_IP   := cat /tmp/scan | grep local | tr -s ' ' | cut -d' ' -f 6
-SCAN_PORT := echo 3232
-else
-DEFAULT_SO := $(if $(filter arm64 aarch64,$(UNAME_M)),Linux_ARM64,Linux_64bit)
-SCAN      := avahi-browse -ptr "_arduino._tcp" > /tmp/scan
-SCAN_DEV  := cat /tmp/scan | grep "="
-SCAN_IP   := cat /tmp/scan | cut -d\; -f8
-SCAN_PORT := cat /tmp/scan | cut -d\; -f9
-endif
-MKDIR   ?= ${PWD}
-AC_REPO ?= https://github.com/arduino/arduino-cli
-AC_VER  ?= 1.3.1
-SO      ?= ${DEFAULT_SO}
-AC_BASE ?= https://downloads.arduino.cc/arduino-cli
-AC_TAR  := ${AC_BASE}/arduino-cli_${AC_VER}_${SO}.tar.gz
-ADATA   := ${MKDIR}/bin/.arduino15
-ALIBS   := ${MKDIR}/bin
-CFG     ?= ${ADATA}/arduino-cli.yaml
-ARDUINO := ${MKDIR}/bin/arduino-cli
-ARDUINO := ARDUINO_DATA_DIR=${ADATA} ${ARDUINO} --config-file ${CFG}
-SRC     ?= main
-PROP    ?= ${SRC}/project.yaml
-FQBN    ?= $(shell cat ${PROP} | grep board | cut -d' ' -f2)
-CORE    := $(shell echo ${FQBN} | cut -d: -f1)
-WIFI    ?= ${MKDIR}/wifi.yaml
-SSID    ?= $(shell cat ${WIFI} | grep ssid | tr -d ' ' | cut -d: -f2)
-PSK     ?= $(shell cat ${WIFI} | grep psk | tr -d ' ' | cut -d: -f2)
-FLAGS   ?=
-DEV     ?= 1
-DEFINES := $(if ${DEV},DEVELOPMENT,)
-RWC      = $(foreach d,$(wildcard $1*),$(call RWC,$d/,$2) \
-			$(filter $(subst *,%,$2),$d))
-SRC_FILES := $(call RWC,${SRC},*.c *.cpp *.h *.hpp *.ino)
-INCLUDE_LIST := $(shell yq -r '.include[]? // empty' "${PROP}")
-INCLUDE_FILES := $(foreach include,$(INCLUDE_LIST), \
-	$(call RWC,${PWD}/$(include),*.c *.cpp *.h *.hpp))
-FILES := ${SRC_FILES} ${INCLUDE_FILES}
-FLAGS   := ${FLAGS} $(foreach def, ${DEFINES}, -D$(def))
-FLAGS   := ${FLAGS} -DSTASSID="$(SSID)"
-FLAGS   := ${FLAGS} -DSTAPSK="$(PSK)"
-RAMFS   ?= /dev/shm2  # disabled
-RAMDISK ?= ${RAMFS}/quickbuild
-BUILD   ?= ${MKDIR}/.build/${CORE}/${SRC}
-SKETCH  := $(notdir ${SRC})
-OBJ     := ${BUILD}/${SKETCH}.ino.elf
-STAMP   := ${BUILD}/.compile.stamp
-OTAIP   ?=
-OTAPORT ?=
-BAUD    ?= 115200
-PORT    ?= /dev/ttyUSB0
-VENV    := . ${MKDIR}/.venv/bin/activate
-PY      := ${VENV} && python3
-OTA     := ${MKDIR}/bin/.arduino15/packages/${CORE}/hardware/${CORE}/*/tools/espota.py
-MKFS    := ${MKDIR}/bin/.arduino15/packages/${CORE}/tools/mkspiffs/*/mkspiffs
+MKDIR ?= ${PWD}
+include ${MKDIR}/utils.mk
 
 .ONESHELL:
+.DEFAULT_GOAL := shell
+MAKEFLAGS += --no-print-directory
 
+# --- default target ---
+.PHONY: shell
 shell:
-	nix-shell ${MKDIR}
+	@ nix-shell ${MKDIR} && exit 0 || true
+	$(ERROR) "nix-shell not found. See https://nixos.org/download"
 
-${MKDIR}/.venv:
-	virtualenv -p python3 ${MKDIR}/.venv
+# --- nix check ---
+ifneq ($(MAKECMDGOALS),)
+  ifneq ($(MAKECMDGOALS),shell)
+    ifndef IN_NIX_SHELL
+      $(error Not in nix-shell. Run 'make' or 'make shell')
+    endif
+  endif
+endif
 
-${MKDIR}/bin:
-	${MAKE} deps
-	if [ -e ${RAMFS} ]; then
-		mkdir -p ${RAMDISK}/bin
-		ln -s ${RAMDISK}/bin ${MKDIR}/bin
-	else
-		mkdir -p ${MKDIR}/bin
+SHELL := /bin/bash
+UNAME_S := $(shell uname -s)
+UNAME_M := $(shell uname -m)
+
+# --- paths ---
+ADATA := ${MKDIR}/bin/data
+ALIBS := ${MKDIR}/bin
+CFG   ?= ${ADATA}/arduino-cli.yaml
+
+ARDUINO := ARDUINO_DATA_DIR=${ADATA} arduino-cli --config-file ${CFG}
+
+# --- sketch ---
+SRC    ?= main
+PROP   ?= ${SRC}/project.yaml
+SKETCH := $(notdir ${SRC})
+
+YAML_SEP := |
+YAML_CACHE := $(shell yq -r '[ \
+  .board // "", \
+  (.baudrate // "115200"), \
+  (.dependencies // [] | join(" ")), \
+  (.lib_dirs // [] | join(" ")), \
+  (.inject // [] | join(" ")), \
+  (.defines // [] | join(" ")) \
+] | join("${YAML_SEP}")' "${PROP}" 2>/dev/null)
+
+_yaml_field = $(word $(1),$(subst ${YAML_SEP}, ,${YAML_CACHE}))
+
+# --- board / core ---
+FQBN         := $(call _yaml_field,1)
+CORE         := $(shell echo ${FQBN} | cut -d: -f1)
+
+# --- build paths ---
+BUILD       := ${MKDIR}/.cache/build/${CORE}/${SRC}
+OBJ         := ${BUILD}/${SKETCH}.ino.elf
+STAMP_BUILD := ${BUILD}/.stamp-build
+STAMP_LIBS  := ${MKDIR}/.cache/.stamp-libs
+LOG         := ${BUILD}/build.log
+
+# --- source files ---
+RWC = $(foreach d,$(wildcard $1*),$(call RWC,$d/,$2) $(filter $(subst *,%,$2),$d))
+SRC_FILES := $(call RWC,${SRC},*.c *.cpp *.h *.hpp *.ino)
+
+# --- project.yaml fields ---
+DEPENDENCIES := $(call _yaml_field,3)
+LIB_DIRS     := $(call _yaml_field,4)
+INJECT       := $(call _yaml_field,5)
+DEFINES_LIST := $(call _yaml_field,6)
+BAUD         := $(call _yaml_field,2)
+
+LOCAL_LIB_FILES := $(foreach lib,$(LIB_DIRS),$(call RWC,${PWD}/$(lib),*.c *.cpp *.h *.hpp))
+FILES := ${SRC_FILES} ${LOCAL_LIB_FILES}
+
+# --- wifi (optional) ---
+FLAGS :=
+DEV   ?= 1
+
+ifneq (,$(wildcard ${WIFI}))
+SSID := $(shell yq -r '.ssid // empty' "${WIFI}" 2>/dev/null)
+PSK  := $(shell yq -r '.psk // empty' "${WIFI}" 2>/dev/null)
+FLAGS += -DSTASSID="$(SSID)" -DSTAPSK="$(PSK)"
+endif
+
+FLAGS += $(if ${DEV},-DDEVELOPMENT,)
+FLAGS += $(foreach def,${DEFINES_LIST},-D$(def))
+
+# --- OTA / serial ---
+OTA  := ${ADATA}/packages/${CORE}/hardware/${CORE}/*/tools/espota.py
+MKFS := ${ADATA}/packages/${CORE}/tools/mkspiffs/*/mkspiffs
+
+include ${MKDIR}/device.mk
+
+# --- internal checks ---
+.PHONY: _checksrc
+_checksrc:
+	@if [ ! -d "${SRC}" ]; then
+		$(ERROR_S) "Source directory '${SRC}' not found. Set SRC= to your sketch directory."
+		exit 1
 	fi
+	@if [ -z "${FQBN}" ]; then
+		$(ERROR_S) "Missing 'board' field in ${PROP}"
+		exit 1
+	fi
+
+.PHONY: fields
+fields:
+	@echo "YAML_CACHE: ${YAML_CACHE}"
+	@echo "=== Project Fields ==="
+	@echo "FQBN: ${FQBN}"
+	@echo "CORE: ${CORE}"
+	@echo "DEPENDENCIES: ${DEPENDENCIES}"
+	@echo "LIB_DIRS: ${LIB_DIRS}"
+	@echo "INJECT: ${INJECT}"
+	@echo "DEFINES_LIST: ${DEFINES_LIST}"
+	@echo "BAUD: ${BAUD}"
+
+# --- arduino-cli config ---
+${MKDIR}/bin/data:
+	$(INFO) "Setting up arduino-cli config..."
 	mkdir -p ${ADATA}
 	ADATA=${ADATA}; ADATA=$${ADATA//\//\\\/}; \
 	sed "s/arduino_data.*/arduino_data: $${ADATA}/g" \
@@ -87,184 +126,186 @@ ${MKDIR}/bin:
 	ALIBS=${ALIBS}; ALIBS=$${ALIBS//\//\\\/}; \
 	sed -i "s/  user:.*/  user: $${ALIBS}/g" ${CFG}
 
-${MKDIR}/bin/arduino-cli: ${MKDIR}/bin
-	curl -fsSL ${AC_TAR} | tar -xz -C ${MKDIR}/bin/
-	touch ${MKDIR}/bin/arduino-cli
-
-${ADATA}/package_index.json: ${MKDIR}/bin/arduino-cli
+# --- core install ---
+${ADATA}/package_index.json: ${MKDIR}/bin/data
+	$(INFO) "Updating core index..."
 	${ARDUINO} core update-index
 	touch ${ADATA}/package_index.json
 
 ${ADATA}/packages/${CORE}: ${ADATA}/package_index.json
-	${MAKE} checksrc
+	$(MAKE) _checksrc
+	$(INFO) "Installing core ${CORE}..."
 	${ARDUINO} core install ${CORE}:${CORE}
 	touch ${ADATA}/packages/${CORE}
-
-.PHONY: checksrc
-checksrc:
-	@ if [ ! -d "${SRC}" ]; then \
-		echo -e "\033[31m>>> Source directory ${SRC} not found! Set SRC variable to point to your sketch directory.\033[0m"; \
-		exit 1; \
-	fi
 
 .PHONY: core
 core: ${ADATA}/packages/${CORE}
 
-${BUILD}:
-	if [ -e ${RAMFS} ]; then
-		mkdir -p ${RAMDISK}/build
-		ln -s ${RAMDISK}/build ${MKDIR}/${BUILD}
-	else
-		mkdir -p ${MKDIR}/${BUILD}
-	fi
-
-${MKDIR}/.libs-downloaded: ${PROP}
-	@ ${VENV} && cat ${PROP} | yq -Y .libs | sed 's/- //' | \
-		while read LIB; do
-			NAME=$$(echo $$LIB | cut -d@ -f1)
-			VERSION=$$(echo $$LIB | cut -d@ -f2)
-			
-			# Check if this is a git URL
-			if [[ "$$NAME" == *.git ]]; then
-				# Handle git repository
-				REPO_URL=$$NAME
-				LIB_NAME=$$(basename $$REPO_URL .git)
-				LIB_DIR="${MKDIR}/bin/libraries/$$LIB_NAME"
-				
-				if [ ! -e $$LIB_DIR ]; then
-					echo "Cloning $$REPO_URL@$$VERSION to $$LIB_NAME" >&2
-					git clone --depth 1 $$REPO_URL $$LIB_DIR
-				else
-					# Check if we need to update version
-					if [ -f $$LIB_DIR/library.properties ]; then
-						IVER=$$(cat $$LIB_DIR/library.properties | grep version | cut -d= -f2)
-						if [ ! "$$IVER" = "$$VERSION" ]; then
-							echo "Updating $$LIB_NAME from $$IVER to $$VERSION" >&2
-							cd $$LIB_DIR && git fetch
-						else 
-							echo "Library $$LIB_NAME already @$$VERSION"
-						fi
-					else
-						echo "No library.properties, just checkout the version"
-						cd $$LIB_DIR && git fetch
-					fi
-				fi
+# --- dependencies ---
+${STAMP_LIBS}: ${PROP}
+	$(INFO) "Installing dependencies..."
+	mkdir -p $(dir ${STAMP_LIBS})
+	@for LIB in $(DEPENDENCIES); do
+		NAME=$$(echo $$LIB | cut -d@ -f1)
+		VERSION=$$(echo $$LIB | cut -d@ -f2)
+		if [[ "$$NAME" == *.git ]]; then
+			LIB_NAME=$$(basename $$NAME .git)
+			LIB_DIR="${ALIBS}/libraries/$$LIB_NAME"
+			if [ ! -e $$LIB_DIR ]; then
+				$(INFO_S) "Cloning $$LIB_NAME..."
+				git clone --depth 1 $$NAME $$LIB_DIR
+			fi
+		else
+			if [ ! -e ${ALIBS}/libraries/$$NAME ]; then
+				$(INFO_S) "Installing $$NAME@$$VERSION..."
+				${ARDUINO} lib install "$$NAME@$$VERSION"
 			else
-				# Handle regular arduino library
-				if [ ! -e ${MKDIR}/bin/libraries/$$NAME ]; then
-					echo "Installing $$NAME@$$VERSION" >&2
-					${ARDUINO} lib install $$NAME@$$VERSION
-				else
-					IVER=$$(cat ${MKDIR}/bin/libraries/$$NAME/library.properties \
-						| grep version | cut -d= -f2)
-					if [ ! "$$IVER" = "$$VERSION" ]; then
-						echo "Updating $$NAME from $$IVER to $$VERSION" >&2
-						${ARDUINO} lib install $$NAME@$$VERSION
-					fi
+				IVER=$$(grep version ${ALIBS}/libraries/$$NAME/library.properties | cut -d= -f2)
+				if [ "$$IVER" != "$$VERSION" ]; then
+					$(INFO_S) "Updating $$NAME from $$IVER to $$VERSION..."
+					${ARDUINO} lib install "$$NAME@$$VERSION"
 				fi
 			fi
-			
-			# Apply special fixes if needed
-			if [ "$$NAME" = "Tiny4kOLED" ] || [ "$$LIB_NAME" = "Tiny4kOLED" ]; then
-				# find string avr/pgmspace in files and replace with pgmspace
-				find ${MKDIR}/bin/libraries/$$NAME -type f -exec sed -i \
-					-e 's/avr\/pgmspace/pgmspace/g' {} \;
-			fi
-		done
-	@ touch ${MKDIR}/.libs-downloaded
+		fi
+	done
+	touch ${STAMP_LIBS}
 
-download-libs: ${MKDIR}/.libs-downloaded
+# --- build ---
+${BUILD}:
+	mkdir -p ${BUILD}
 
-${STAMP}: ${MKDIR}/.libs-downloaded ${BUILD} ${ADATA}/packages/${CORE} ${FILES} ${WIFI}
-	${MAKE} checksrc
-	time ${ARDUINO} compile --fqbn ${FQBN} \
-		$(foreach include,$(INCLUDE_LIST), \
-		  --libraries ${PWD}/$(include)) \
-	 	--build-property 'compiler.cpp.extra_flags=${FLAGS}' \
-	 	--build-path ${BUILD} \
-	 	${SRC} -v && \
+${STAMP_BUILD}: _checksrc ${STAMP_LIBS} ${BUILD} ${ADATA}/packages/${CORE} ${FILES}
+	$(INFO) "Building ${SKETCH}..."
+	$(foreach sym,$(INJECT),ln -s ${PWD}/$(sym)/* ${PWD}/${SRC} &&) true
+	${ARDUINO} compile --fqbn ${FQBN} \
+		$(foreach lib,$(LIB_DIRS),--libraries ${PWD}/$(lib)) \
+		--build-property 'compiler.cpp.extra_flags=${FLAGS}' \
+		--build-property 'compiler.c.extra_flags=${FLAGS}' \
+		--build-path ${BUILD} \
+		${SRC} -v > ${LOG} 2>&1 && \
 	test -f ${OBJ} && \
-	touch ${STAMP}
+	find ${PWD}/${SRC} -type l -delete && \
+	touch ${STAMP_BUILD} && \
+	$(OK_S) "Build successful: ${SKETCH}" || { \
+		find ${PWD}/${SRC} -type l -delete; \
+		$(ERROR_S) "Build failed. Log:"; \
+		cat ${LOG}; \
+		rm -f ${STAMP_BUILD}; \
+		exit 1; \
+	}
 
 .PHONY: build
-build: ${STAMP}
+build: ${STAMP_BUILD}
 
-.PHONY: deps
-deps: ${MKDIR}/.venv
+.PHONY: flash
+flash: ${STAMP_BUILD}
+	$(call _usb_resolve)
+	$(INFO_S) "Flashing ${SKETCH} to $$PORT..."
+	${ARDUINO} upload -p $$PORT --fqbn ${FQBN} -i ${OBJ} ${SRC} -v
 
-flash: ${STAMP}
-	time ${ARDUINO} upload -p ${PORT} --fqbn ${FQBN} -i ${OBJ} ${SRC} -v
-
-.PHONY: clean
-clean:
-	if [ -d ${BUILD} ]; then
-		rm -rf ${BUILD}
-	fi
-
-.PHONY: clean-all
-clean-all: clean
-	rm -rf ${MKDIR}/.build
-
-clean-bin:
-	rm -rf ${MKDIR}/bin
-
-.PHONY: deploy
-deploy:
-	touch ${SRC}/*.ino
-	DEV= ${MAKE} -s build
-
-ota: ${STAMP}
-	@ if [ -z ${OTAIP} -o -z ${OTAPORT} ]; then
-		${SCAN}
-		${SCAN_DEV}
-		if [ -z ${OTAIP} ]; then
-			OTAIP=$$(${SCAN_IP})
-		fi
-		if [ -z ${OTAPORT} ]; then
-			OTAPORT=$$(${SCAN_PORT})
-		fi
-	fi
-	time ${PY} ${OTA} -i "$${OTAIP}" -p $${OTAPORT} -f ${BUILD}/*.ino.bin
-
-find:
-	${SCAN}
-	${SCAN_DEV}
-	OTAIP=$$(${SCAN_IP})
-	OTAPORT=$$(${SCAN_PORT})
-	echo "Found: $${OTAIP}@$${OTAPORT}"
-
-list-boards:
-	${ARDUINO} board listall
-
-list-usb:
-	${ARDUINO} board list
-
+# --- filesystem ---
 ${BUILD}/img.bin: ${SRC}/data/*
-	SIZE=$$(cat ${BUILD}/partitions.csv | grep spiffs | cut -d, -f5)
+	SIZE=$$(grep spiffs ${BUILD}/partitions.csv | cut -d, -f5)
 	${MKFS} -c ${SRC}/data -s $${SIZE} ${BUILD}/img.bin
 
 .PHONY: fs
 fs: ${BUILD}/img.bin
 
-ota-fs: ${BUILD}/img.bin
-	@ if [ -z ${OTAIP} -o -z ${OTAPORT} ]; then
-		${SCAN}
-		${SCAN_DEV}
-		if [ -z ${OTAIP} ]; then
-			OTAIP=$$(${SCAN_IP})
-		fi
-		if [ -z ${OTAPORT} ]; then
-			OTAPORT=$$(${SCAN_PORT})
-		fi
+# --- OTA ---
+.PHONY: scan
+scan:
+	$(INFO) "Scanning for OTA devices..."
+	SCAN_RESULT=$$(python3 ${MKDIR}/tools/scan.py 2>/dev/null)
+	if [ -z "$$SCAN_RESULT" ]; then
+		$(ERROR_S) "No OTA device found."
+		exit 1
 	fi
-	time ${PY} ${OTA} -i "$${OTAIP}" -p $${OTAPORT} -s -f ${BUILD}/img.bin
+	$(OK_S) "Found: $$SCAN_RESULT"
 
-cat-serial:
-	python3 -m serial.tools.miniterm --exit-char 3 ${PORT} ${BAUD}
+.PHONY: forget-usb
+forget-usb:
+	rm -f ${CACHE_USB}
+	$(OK) "USB device config cleared."
 
-serve-html:
+.PHONY: forget-ota
+forget-ota:
+	rm -f ${CACHE_OTA}
+	$(OK) "OTA device config cleared."
+
+.PHONY: ota
+ota: ${STAMP_BUILD}
+	$(call _ota_resolve)
+	$(INFO_S) "OTA flash to $$OTAIP:$$OTAPORT..."
+	time python3 ${OTA} -i "$$OTAIP" -p $$OTAPORT -f ${BUILD}/*.ino.bin
+
+.PHONY: ota-fs
+ota-fs: ${BUILD}/img.bin
+	$(call _ota_resolve)
+	$(INFO_S) "OTA filesystem to $$OTAIP:$$OTAPORT..."
+	time python3 ${OTA} -i "$$OTAIP" -p $$OTAPORT -s -f ${BUILD}/img.bin
+
+# --- deploy (no DEV flag) ---
+.PHONY: deploy
+deploy:
+	touch ${SRC}/*.ino
+	DEV= ${MAKE} build
+
+# --- serial monitor ---
+.PHONY: monitor
+monitor:
+	$(call _usb_resolve)
+	python3 -m serial.tools.miniterm --raw --xonxoff --exit-char 3 $$PORT ${BAUD}
+
+# --- serve local data dir ---
+.PHONY: serve
+serve:
 	cd ${SRC}/data && python3 -m http.server 8000
 
+# --- board info ---
+.PHONY: list-boards
+list-boards:
+	${ARDUINO} board listall
+
+.PHONY: list-usb
+list-usb:
+	${ARDUINO} board list
+
+# --- clean targets ---
+.PHONY: clean
+clean:
+	rm -f ${STAMP_BUILD}
+	find ${PWD}/${SRC} -type l -delete
+	$(OK) "Build stamp removed. Run 'make build' to recompile."
+
+.PHONY: clean-libs
+clean-libs:
+	rm -f ${STAMP_LIBS}
+	$(OK) "Libs stamp removed. Run 'make build' to re-download dependencies."
+
+.PHONY: clean-build
+clean-build:
+	rm -rf ${BUILD}
+	find ${PWD}/${SRC} -type l -delete
+	$(OK) "Build cache removed."
+
+.PHONY: clean-all
+clean-all:
+	rm -rf ${MKDIR}/.cache
+	find ${PWD}/${SRC} -type l -delete
+	$(OK) "Cache cleared."
+	$(WARN) "To also remove binaries, run: make clean-bin CONFIRM=yes"
+
+.PHONY: clean-bin
+clean-bin:
+	@if [ "${CONFIRM}" != "yes" ]; then
+		$(ERROR_S) "This will delete all downloaded binaries and libraries."
+		$(WARN_S) "Run: make clean-bin CONFIRM=yes"
+		exit 1
+	fi
+	rm -rf ${MKDIR}/bin
+	$(OK) "Binaries removed."
+
+# --- example targets ---
 EXAMPLES := $(wildcard examples/*)
 EXAMPLE_NAMES := $(notdir $(EXAMPLES))
 
@@ -278,4 +319,14 @@ flash-$(1):
 	$${MAKE} flash SRC=examples/$(1)
 endef
 
+DATA_EXAMPLES := $(wildcard examples/*/data)
+DATA_EXAMPLE_NAMES := $(notdir $(patsubst %/data,%,$(DATA_EXAMPLES)))
+
+define DATA_EXAMPLE_TARGETS
+.PHONY: serve-$(1)
+serve-$(1):
+	cd examples/$(1)/data && python3 -m http.server 8000
+endef
+
 $(foreach example,$(EXAMPLE_NAMES),$(eval $(call EXAMPLE_TARGETS,$(example))))
+$(foreach example,$(DATA_EXAMPLE_NAMES),$(eval $(call DATA_EXAMPLE_TARGETS,$(example))))

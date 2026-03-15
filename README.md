@@ -8,158 +8,177 @@ are downloaded on first build and kept locally inside the project.
 
 ---
 
-## Setup
+## Requirements
+
+- [Nix](https://nixos.org/download) — manages the entire toolchain (`arduino-cli`, `python3`, `yq`, etc.)
+
+Everything else is handled automatically on first run.
+
+---
+
+## Getting started
 
 ```sh
-git submodule add https://github.com/anderson-/acme.git .acme
-```
-```make
-MKDIR := .acme
-SRC   := ${PWD}
-# WIFI  := ${PWD}/wifi.yaml
--include ${MKDIR}/makefile
+# Enter the development environment
+make
+
+# Build the default sketch (main/)
+make build
+
+# Flash via USB
+make flash
+
+# Flash via OTA
+make ota
 ```
 
-### ACME as a sibling directory
-
-In your project, create a `Makefile`:
-```make
-MKDIR := ../acme
-SRC   := ${PWD}
-# WIFI  := ${PWD}/wifi.yaml
--include ${MKDIR}/makefile
-```
+On first `flash` or `ota`, ACME scans for available devices and asks you to pick one. The choice is saved — next time it just works.
 
 ---
 
 ## Project structure
 
-Your project needs at minimum:
 ```
-my-project/
-├── my-project.ino   # must match the directory name
-├── project.yaml
-├── wifi.yaml        # optional
-└── makefile
+your-project/
+  main/
+    main.ino
+    project.yaml     # board, dependencies, and build config
+  wifi.yaml          # optional, git-ignored WiFi credentials
+  acme.mk            # copied from ACME repo
+  makefile           # one-liner that includes ACME
 ```
 
-or 
-
+**`makefile`** (drop-in, you can add custom targets):
+```makefile
+-include acme.mk
 ```
-my-project/
-├── main                 # SRC   := ${PWD}/main
-│   ├── main.ino
-│   ├── project.yaml
-│   └── wifi.yaml        # optional
-└── makefile
+
+**`acme.mk`** (copied from ACME repo, finds ACME automatically):
+```makefile
+# looks for acme in ./acme or ../acme, or set ACME_DIR manually
 ```
 
 ---
 
 ## project.yaml
+
 ```yaml
-board: esp32:esp32:lolin32-lite   # FQBN of your board
+board: esp32:esp32:m5stack_cardputer
+baudrate: 115200
 
-libs:
-  - WebSockets@2.3.5              # libraries to install
+dependencies:
+  - WebSockets@2.3.5
+  - ArduinoJson@7.1.0
 
-include:                          # additional source directories
-  - src
+# local libs with library.properties
+lib_dirs:
+  - ../lib/my-arduino-lib
+
+# local code without library.properties — injected into sketch dir
+inject:
+  - ../lib/my-raw-lib
+
+# compiler defines
+defines:
+  - MY_FEATURE=1
 ```
 
-To list available board FQBNs:
-```sh
-make list-boards
-```
-
----
-
-## Wi-Fi credentials
-
-Create `wifi.yaml` (keep it out of version control):
+**`wifi.yaml`** (optional, add to `.gitignore`):
 ```yaml
-ssid: my-wifi
-psk: my-password
+ssid: MyNetwork
+psk: mypassword
 ```
 
-These are injected at compile time as `STASSID` and `STAPSK`:
-```cpp
-const char* ssid     = STASSID;
-const char* password = STAPSK;
-```
+When present, `STASSID` and `STAPSK` are automatically added as compiler defines.
 
 ---
 
-## Building and flashing
-```sh
-make build                            # compile
-make list-usb                         # find usb device
-make flash PORT=/dev/tty.usbmodem101  # flash via serial
-```
+## Targets
 
-By default, `DEVELOPMENT=1` is defined as a preprocessor flag.
-To build without it (e.g. for production):
-```sh
-make deploy                         # equivalent to DEV= make build
-```
+| Target | Description |
+|---|---|
+| `make` | Open nix-shell (default) |
+| `make build` | Compile the sketch |
+| `make flash` | Flash via USB |
+| `make ota` | Flash via OTA |
+| `make fs` | Build SPIFFS filesystem image |
+| `make ota-fs` | Flash filesystem via OTA |
+| `make monitor` | Open serial monitor |
+| `make deploy` | Build without `DEVELOPMENT` flag |
+| `make scan` | Scan for OTA devices on the network |
+| `make list-usb` | List connected USB boards |
+| `make list-boards` | List all known boards |
+| `make serve` | Serve `data/` on http://localhost:8000 |
 
----
+**Clean targets:**
 
-## OTA
-```sh
-make find                           # discover device IP and OTA port
-make ota                            # auto-discover and flash firmware
-# make ota OTAIP=192.168.1.100 OTAPORT=3232 # use port 8266 for esp8266
-```
+| Target | Description |
+|---|---|
+| `make clean` | Remove build stamp (forces recompile) |
+| `make clean-libs` | Remove libs stamp (forces re-download) |
+| `make clean-build` | Remove build cache |
+| `make clean-all` | Remove all cache |
+| `make clean-bin CONFIRM=yes` | Remove downloaded binaries and libraries |
 
----
+**Device config:**
 
-## SPIFFS filesystem
-
-Place your files in `data/` inside your project directory, then:
-```sh
-make fs                             # build the SPIFFS image
-make ota-fs                         # upload via OTA (auto-discover)
-# make ota-fs OTAIP=192.168.1.100 OTAPORT=3232 # use port 8266 for esp8266
-```
-
----
-
-## Serial monitor
-```sh
-make monitor           # raw serial output
-make monitor-hex       # hexdump
-make cat-serial        # via pyserial miniterm
-```
-
-Default baud rate is `115200`. Override with `BAUD=9600`.
+| Target | Description |
+|---|---|
+| `make forget-usb` | Clear saved USB port |
+| `make forget-ota` | Clear saved OTA address |
 
 ---
 
-## Running the examples
+## Examples
+
+If the project has an `examples/` directory, ACME generates targets automatically:
+
 ```sh
 make build-blink
-# make build SRC=examples/blink
-make flash-blink PORT=/dev/tty.usbmodem101
-# make flash SRC=examples/blink PORT=/dev/tty.usbmodem101
+make flash-blink
+```
+
+If the example has a `data/` directory, ACME also generates a `serve-<example>` target:
+
+```sh
+make serve-websockets
 ```
 
 ---
 
-## Cleaning up
+## Variables
+
+Override any of these on the command line:
+
 ```sh
-make clean        # removes build artifacts for current SRC
-make clean-all    # removes build artifacts, downloaded arduino-cli, cores and libs
+make build SRC=examples/blink
+make flash PORT=/dev/cu.usbmodem1234
+make ota OTAIP=192.168.1.42 OTAPORT=3232
+make monitor BAUD=9600
 ```
 
 ---
 
-## Environment
+## Device selection
 
-ACME uses `nix-shell` for a reproducible environment:
-```sh
-make shell
+On first `flash`, `monitor`, or `ota`, ACME scans for available devices and shows an interactive list:
+
+```
+  1) /dev/cu.usbmodem1123401   serial   ESP32 Family Device
+  2) /dev/cu.usbmodem1123402   serial   ESP32 Family Device
+Select device [1]:
 ```
 
-Build artifacts can optionally be placed on a ramdisk (`/dev/shm`) to speed
-up compilation — this is configured automatically if the ramdisk is available.
+The selection is saved in `.cache/usb/<sketch>` or `.cache/ota/<sketch>`. If the device is no longer available on the next run, ACME asks whether to clear the saved config and rescan.
+
+---
+
+## How ACME is included
+
+ACME can be used in three ways:
+
+- **Embedded** — copy the `acme/` folder inside your project
+- **Sibling** — keep `acme/` next to your project folder
+- **Custom path** — set `ACME_DIR=/path/to/acme` before running make
+
+`acme.mk` handles discovery automatically.
