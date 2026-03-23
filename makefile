@@ -46,7 +46,7 @@ YAML_CACHE := $(shell yq -r '[ \
   (.defines // [] | join(" ")) \
 ] | join("${YAML_SEP}")' "${PROP}" 2>/dev/null)
 
-_yaml_field = $(word $(1),$(subst ${YAML_SEP}, ,${YAML_CACHE}))
+_yaml_field = $(shell echo "${YAML_CACHE}" | cut -d'${YAML_SEP}' -f$(1))
 
 # --- board / core ---
 FQBN         := $(call _yaml_field,1)
@@ -64,11 +64,11 @@ RWC = $(foreach d,$(wildcard $1*),$(call RWC,$d/,$2) $(filter $(subst *,%,$2),$d
 SRC_FILES := $(call RWC,${SRC},*.c *.cpp *.h *.hpp *.ino)
 
 # --- project.yaml fields ---
+BAUD         := $(call _yaml_field,2)
 DEPENDENCIES := $(call _yaml_field,3)
 LIB_DIRS     := $(call _yaml_field,4)
 INJECT       := $(call _yaml_field,5)
 DEFINES_LIST := $(call _yaml_field,6)
-BAUD         := $(call _yaml_field,2)
 
 LOCAL_LIB_FILES := $(foreach lib,$(LIB_DIRS),$(call RWC,${PWD}/$(lib),*.c *.cpp *.h *.hpp))
 FILES := ${SRC_FILES} ${LOCAL_LIB_FILES}
@@ -179,9 +179,11 @@ ${STAMP_LIBS}: ${PROP}
 ${BUILD}:
 	mkdir -p ${BUILD}
 
-${STAMP_BUILD}: _checksrc ${STAMP_LIBS} ${BUILD} ${ADATA}/packages/${CORE} ${FILES}
+${STAMP_BUILD}: ${STAMP_LIBS} ${BUILD} ${ADATA}/packages/${CORE} ${FILES}
+	@ $(MAKE) _checksrc
 	@ $(foreach sym,$(INJECT),ln -s ${PWD}/$(sym)/* ${PWD}/${SRC} &&) true
-	@ touch ${LOG}; \
+	echo "LOG=${LOG} BUILD=${BUILD}"
+	@ mkdir -p ${BUILD}; rm -f ${LOG}; touch ${LOG}; \
 	$(call file_spinner,${LOG},Building ${SKETCH}...) & WATCH_PID=$$!; \
 	trap "kill -- -$$WATCH_PID 2>/dev/null; wait $$WATCH_PID 2>/dev/null; printf '\r\033[K' >&2" EXIT INT TERM; \
 	CMD="${ARDUINO} compile --fqbn ${FQBN} \
@@ -189,7 +191,7 @@ ${STAMP_BUILD}: _checksrc ${STAMP_LIBS} ${BUILD} ${ADATA}/packages/${CORE} ${FIL
 		--build-property 'compiler.cpp.extra_flags=${FLAGS}' \
 		--build-property 'compiler.c.extra_flags=${FLAGS}' \
 		--build-path ${BUILD} ${SRC} -v"; \
-	echo "$$CMD" | tr -s ' ' | sed 's/\t/ /g' > ${LOG}; \
+	echo "$$CMD" | tr -s ' ' | sed 's/\t/ /g' >> ${LOG}; \
 	time eval "$$CMD" >> ${LOG} 2>&1; \
 	BUILD_EXIT=$$?; \
 	kill $$WATCH_PID 2>/dev/null; wait $$WATCH_PID 2>/dev/null; printf '\r\033[K\n' >&2; \
@@ -213,6 +215,10 @@ flash: ${STAMP_BUILD}
 	$(call _usb_resolve)
 	$(INFO_S) "Flashing ${SKETCH} to $$PORT..."
 	time ${ARDUINO} upload -p $$PORT --fqbn ${FQBN} -i ${OBJ} ${SRC} -v
+
+.PHONY: resolve-usb
+resolve-usb:
+	$(call _usb_resolve)
 
 # --- filesystem ---
 ${BUILD}/img.bin: ${SRC}/data/*
