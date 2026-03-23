@@ -75,12 +75,13 @@ FILES := ${SRC_FILES} ${LOCAL_LIB_FILES}
 
 # --- wifi (optional) ---
 FLAGS :=
+WIFI  := ${MKDIR}/wifi.yaml
 DEV   ?= 1
 
 ifneq (,$(wildcard ${WIFI}))
 SSID := $(shell yq -r '.ssid // empty' "${WIFI}" 2>/dev/null)
 PSK  := $(shell yq -r '.psk // empty' "${WIFI}" 2>/dev/null)
-FLAGS += -DSTASSID="$(SSID)" -DSTAPSK="$(PSK)"
+FLAGS += -DSTASSID=\"$(SSID)\" -DSTAPSK=\"$(PSK)\"
 endif
 
 FLAGS += $(if ${DEV},-DDEVELOPMENT,)
@@ -115,6 +116,7 @@ fields:
 	@echo "INJECT: ${INJECT}"
 	@echo "DEFINES_LIST: ${DEFINES_LIST}"
 	@echo "BAUD: ${BAUD}"
+	@echo "FLAGS: ${FLAGS}"
 
 # --- arduino-cli config ---
 ${MKDIR}/bin/data:
@@ -148,6 +150,9 @@ ${STAMP_LIBS}: ${PROP}
 	@for LIB in $(DEPENDENCIES); do
 		NAME=$$(echo $$LIB | cut -d@ -f1)
 		VERSION=$$(echo $$LIB | cut -d@ -f2)
+		if [ "$$VERSION" = "$$NAME" ]; then
+			VERSION=""
+		fi
 		if [[ "$$NAME" == *.git ]]; then
 			LIB_NAME=$$(basename $$NAME .git)
 			LIB_DIR="${ALIBS}/libraries/$$LIB_NAME"
@@ -157,11 +162,11 @@ ${STAMP_LIBS}: ${PROP}
 			fi
 		else
 			if [ ! -e ${ALIBS}/libraries/$$NAME ]; then
-				$(INFO_S) "Installing $$NAME@$$VERSION..."
-				${ARDUINO} lib install "$$NAME@$$VERSION"
+				$(INFO_S) "Installing $$NAME$${VERSION:+@$$VERSION}..."
+				${ARDUINO} lib install "$${VERSION:+$$NAME@$$VERSION}$${VERSION:-$$NAME}"
 			else
 				IVER=$$(grep version ${ALIBS}/libraries/$$NAME/library.properties | cut -d= -f2)
-				if [ "$$IVER" != "$$VERSION" ]; then
+				if [ -n "$$VERSION" ] && [ "$$IVER" != "$$VERSION" ]; then
 					$(INFO_S) "Updating $$NAME from $$IVER to $$VERSION..."
 					${ARDUINO} lib install "$$NAME@$$VERSION"
 				fi
@@ -175,24 +180,30 @@ ${BUILD}:
 	mkdir -p ${BUILD}
 
 ${STAMP_BUILD}: _checksrc ${STAMP_LIBS} ${BUILD} ${ADATA}/packages/${CORE} ${FILES}
-	$(INFO) "Building ${SKETCH}..."
-	$(foreach sym,$(INJECT),ln -s ${PWD}/$(sym)/* ${PWD}/${SRC} &&) true
-	${ARDUINO} compile --fqbn ${FQBN} \
+	@ $(foreach sym,$(INJECT),ln -s ${PWD}/$(sym)/* ${PWD}/${SRC} &&) true
+	@ touch ${LOG}; \
+	$(call file_spinner,${LOG},Building ${SKETCH}...) & WATCH_PID=$$!; \
+	trap "kill -- -$$WATCH_PID 2>/dev/null; wait $$WATCH_PID 2>/dev/null; printf '\r\033[K' >&2" EXIT INT TERM; \
+	CMD="${ARDUINO} compile --fqbn ${FQBN} \
 		$(foreach lib,$(LIB_DIRS),--libraries ${PWD}/$(lib)) \
 		--build-property 'compiler.cpp.extra_flags=${FLAGS}' \
 		--build-property 'compiler.c.extra_flags=${FLAGS}' \
-		--build-path ${BUILD} \
-		${SRC} -v > ${LOG} 2>&1 && \
-	test -f ${OBJ} && \
-	find ${PWD}/${SRC} -type l -delete && \
-	touch ${STAMP_BUILD} && \
-	$(OK_S) "Build successful: ${SKETCH}" || { \
+		--build-path ${BUILD} ${SRC} -v"; \
+	echo "$$CMD" | tr -s ' ' | sed 's/\t/ /g' > ${LOG}; \
+	time eval "$$CMD" >> ${LOG} 2>&1; \
+	BUILD_EXIT=$$?; \
+	kill $$WATCH_PID 2>/dev/null; wait $$WATCH_PID 2>/dev/null; printf '\r\033[K\n' >&2; \
+	if [ $$BUILD_EXIT -eq 0 ] && test -f ${OBJ}; then \
+		find ${PWD}/${SRC} -type l -delete; \
+		touch ${STAMP_BUILD}; \
+		$(OK_S) "Build successful!"; \
+	else \
 		find ${PWD}/${SRC} -type l -delete; \
 		$(ERROR_S) "Build failed. Log:"; \
 		cat ${LOG}; \
 		rm -f ${STAMP_BUILD}; \
 		exit 1; \
-	}
+	fi
 
 .PHONY: build
 build: ${STAMP_BUILD}
@@ -201,12 +212,12 @@ build: ${STAMP_BUILD}
 flash: ${STAMP_BUILD}
 	$(call _usb_resolve)
 	$(INFO_S) "Flashing ${SKETCH} to $$PORT..."
-	${ARDUINO} upload -p $$PORT --fqbn ${FQBN} -i ${OBJ} ${SRC} -v
+	time ${ARDUINO} upload -p $$PORT --fqbn ${FQBN} -i ${OBJ} ${SRC} -v
 
 # --- filesystem ---
 ${BUILD}/img.bin: ${SRC}/data/*
 	SIZE=$$(grep spiffs ${BUILD}/partitions.csv | cut -d, -f5)
-	${MKFS} -c ${SRC}/data -s $${SIZE} ${BUILD}/img.bin
+	time ${MKFS} -c ${SRC}/data -s $${SIZE} ${BUILD}/img.bin
 
 .PHONY: fs
 fs: ${BUILD}/img.bin

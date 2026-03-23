@@ -67,6 +67,7 @@ board: esp32:esp32:m5stack_cardputer
 baudrate: 115200
 
 dependencies:
+  - FastLED
   - WebSockets@2.3.5
   - ArduinoJson@7.1.0
 
