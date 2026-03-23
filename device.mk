@@ -1,5 +1,5 @@
-CACHE_USB := ${MKDIR}/.cache/usb/${SRC}
-CACHE_OTA := ${MKDIR}/.cache/ota/${SRC}
+CACHE_USB := ${MKDIR}/.cache/usb/$(subst ${PWD}/,,${SRC})
+CACHE_OTA := ${MKDIR}/.cache/ota/$(subst ${PWD}/,,${SRC})
 
 BAUD := $(shell yq -r '.baudrate // "115200"' "${PROP}" 2>/dev/null)
 
