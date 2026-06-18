@@ -57,7 +57,7 @@ BUILD       := ${MKDIR}/.cache/build/${CORE}/${SRC}
 OBJ         := ${BUILD}/${SKETCH}.ino.elf
 STAMP_BUILD := ${BUILD}/.stamp-build
 STAMP_LIBS  := ${MKDIR}/.cache/.stamp-libs
-LOG         := ${BUILD}/build.log
+LOG         := ${BUILD}.log
 
 # --- source files ---
 RWC = $(foreach d,$(wildcard $1*),$(call RWC,$d/,$2) $(filter $(subst *,%,$2),$d))
@@ -182,6 +182,10 @@ ${BUILD}:
 ${STAMP_BUILD}: ${STAMP_LIBS} ${BUILD} ${ADATA}/packages/${CORE} ${FILES}
 	@ $(MAKE) _checksrc
 	@ $(foreach sym,$(INJECT),ln -s ${PWD}/$(sym)/* ${PWD}/${SRC} &&) true
+	@ $(foreach sym,$(INJECT), if [ -d "${PWD}/$(sym)" ]; \
+	    then ln -sf ${PWD}/$(sym)/* ${PWD}/${SRC}; \
+	    else ln -sf ${PWD}/$(sym) ${PWD}/${SRC}/; \
+	    fi &&) true
 	echo "LOG=${LOG} BUILD=${BUILD}"
 	@ mkdir -p ${BUILD}; rm -f ${LOG}; touch ${LOG}; \
 	$(call file_spinner,${LOG},Building ${SKETCH}...) & WATCH_PID=$$!; \
