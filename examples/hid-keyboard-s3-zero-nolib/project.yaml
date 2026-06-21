@@ -1,0 +1,4 @@
+# ESP32-S3-Zero HID Keyboard Emulator
+# USBMode=hwcdc — TinyUSB on GPIO19/20 (USB-C connector)
+board: esp32:esp32:esp32s3:USBMode=hwcdc
+baudrate: 115200
