@@ -43,7 +43,8 @@ YAML_CACHE := $(shell yq -r '[ \
   (.dependencies // [] | join(" ")), \
   (.lib_dirs // [] | join(" ")), \
   (.inject // [] | join(" ")), \
-  (.defines // [] | join(" ")) \
+  (.defines // [] | join(" ")), \
+  (.filesystem // "spiffs") \
 ] | join("${YAML_SEP}")' "${PROP}" 2>/dev/null)
 
 _yaml_field = $(shell echo "${YAML_CACHE}" | cut -d'${YAML_SEP}' -f$(1))
@@ -56,7 +57,7 @@ CORE         := $(shell echo ${FQBN} | cut -d: -f1)
 BUILD       := ${MKDIR}/.cache/build/${CORE}/${SRC}
 OBJ         := ${BUILD}/${SKETCH}.ino.elf
 STAMP_BUILD := ${BUILD}/.stamp-build
-STAMP_LIBS  := ${MKDIR}/.cache/.stamp-libs
+STAMP_LIBS  := ${BUILD}/.stamp-libs
 LOG         := ${BUILD}.log
 
 # --- source files ---
@@ -69,6 +70,7 @@ DEPENDENCIES := $(call _yaml_field,3)
 LIB_DIRS     := $(call _yaml_field,4)
 INJECT       := $(call _yaml_field,5)
 DEFINES_LIST := $(call _yaml_field,6)
+FS           := $(call _yaml_field,7)
 
 LOCAL_LIB_FILES := $(foreach lib,$(LIB_DIRS),$(call RWC,${PWD}/$(lib),*.c *.cpp *.h *.hpp))
 FILES := ${SRC_FILES} ${LOCAL_LIB_FILES}
@@ -89,7 +91,10 @@ FLAGS += $(foreach def,${DEFINES_LIST},-D$(def))
 
 # --- OTA / serial ---
 OTA  := ${ADATA}/packages/${CORE}/hardware/${CORE}/*/tools/espota.py
-MKFS := ${ADATA}/packages/${CORE}/tools/mkspiffs/*/mkspiffs
+MKFS_SPIFFS := ${ADATA}/packages/${CORE}/tools/mkspiffs/*/mkspiffs
+MKFS_LITTLEFS := ${ADATA}/packages/${CORE}/tools/mklittlefs/*/mklittlefs
+MKFS_TOOL := $(if $(filter littlefs,$(FS)),${MKFS_LITTLEFS},${MKFS_SPIFFS})
+ESPTOOL := ${ADATA}/packages/${CORE}/tools/esptool_py/*/esptool
 
 include ${MKDIR}/device.mk
 
@@ -116,6 +121,7 @@ fields:
 	@echo "INJECT: ${INJECT}"
 	@echo "DEFINES_LIST: ${DEFINES_LIST}"
 	@echo "BAUD: ${BAUD}"
+	@echo "FILESYSTEM: ${FS}"
 	@echo "FLAGS: ${FLAGS}"
 
 # --- arduino-cli config ---
@@ -147,25 +153,31 @@ core: ${ADATA}/packages/${CORE}
 ${STAMP_LIBS}: ${PROP}
 	$(INFO) "Installing dependencies..."
 	mkdir -p $(dir ${STAMP_LIBS})
-	@for LIB in $(DEPENDENCIES); do
+	@yq -r '(.dependencies // [])[]' "${PROP}" 2>/dev/null | while IFS= read -r LIB; do
 		NAME=$$(echo $$LIB | cut -d@ -f1)
 		VERSION=$$(echo $$LIB | cut -d@ -f2)
 		if [ "$$VERSION" = "$$NAME" ]; then
 			VERSION=""
 		fi
-		if [[ "$$NAME" == *.git ]]; then
-			LIB_NAME=$$(basename $$NAME .git)
+		if [[ "$$NAME" == *.git* ]]; then
+			URL=$$NAME
+			BRANCH=
+			if [[ $$URL == *#* ]]; then
+				BRANCH=$${URL##*#}
+				URL=$${URL%%#*}
+			fi
+			LIB_NAME=$$(basename $$URL .git)
 			LIB_DIR="${ALIBS}/libraries/$$LIB_NAME"
 			if [ ! -e $$LIB_DIR ]; then
-				$(INFO_S) "Cloning $$LIB_NAME..."
-				git clone --depth 1 $$NAME $$LIB_DIR
+				$(INFO_S) "Cloning $$LIB_NAME$${BRANCH:+ (branch $$BRANCH)}..."
+				git clone --depth 1 $${BRANCH:+--branch $$BRANCH} $$URL $$LIB_DIR
 			fi
 		else
-			if [ ! -e ${ALIBS}/libraries/$$NAME ]; then
+			if [ ! -e "${ALIBS}/libraries/$$NAME" ]; then
 				$(INFO_S) "Installing $$NAME$${VERSION:+@$$VERSION}..."
 				${ARDUINO} lib install "$${VERSION:+$$NAME@$$VERSION}$${VERSION:-$$NAME}"
 			else
-				IVER=$$(grep version ${ALIBS}/libraries/$$NAME/library.properties | cut -d= -f2)
+				IVER=$$(grep version "${ALIBS}/libraries/$$NAME/library.properties" | cut -d= -f2)
 				if [ -n "$$VERSION" ] && [ "$$IVER" != "$$VERSION" ]; then
 					$(INFO_S) "Updating $$NAME from $$IVER to $$VERSION..."
 					${ARDUINO} lib install "$$NAME@$$VERSION"
@@ -225,12 +237,20 @@ resolve-usb:
 	$(call _usb_resolve)
 
 # --- filesystem ---
-${BUILD}/img.bin: ${SRC}/data/*
-	SIZE=$$(grep spiffs ${BUILD}/partitions.csv | cut -d, -f5)
-	time ${MKFS} -c ${SRC}/data -s $${SIZE} ${BUILD}/img.bin
+${BUILD}/img.bin: ${STAMP_BUILD} ${SRC}/data/*
+	SIZE=$$(grep -E 'spiffs|littlefs' ${BUILD}/partitions.csv | cut -d, -f5)
+	$(INFO_S) "Building ${FS} image ($$SIZE bytes)..."
+	time ${MKFS_TOOL} -c ${SRC}/data -s $${SIZE} ${BUILD}/img.bin
 
 .PHONY: fs
 fs: ${BUILD}/img.bin
+
+.PHONY: flash-fs
+flash-fs: ${BUILD}/img.bin
+	$(call _usb_resolve)
+	OFFSET=$$(grep -E 'spiffs|littlefs' ${BUILD}/partitions.csv | cut -d, -f4)
+	$(INFO_S) "Flashing ${FS} image (offset $${OFFSET}) to $$PORT..."
+	time ${ESPTOOL} -p $$PORT write_flash $${OFFSET} ${BUILD}/img.bin
 
 # --- OTA ---
 .PHONY: scan
@@ -347,6 +367,18 @@ define DATA_EXAMPLE_TARGETS
 .PHONY: serve-$(1)
 serve-$(1):
 	cd examples/$(1)/data && python3 -m http.server 8000
+
+.PHONY: fs-$(1)
+fs-$(1):
+	$${MAKE} fs SRC=examples/$(1)
+
+.PHONY: ota-fs-$(1)
+ota-fs-$(1):
+	$${MAKE} ota-fs SRC=examples/$(1)
+
+.PHONY: flash-fs-$(1)
+flash-fs-$(1):
+	$${MAKE} flash-fs SRC=examples/$(1)
 endef
 
 $(foreach example,$(EXAMPLE_NAMES),$(eval $(call EXAMPLE_TARGETS,$(example))))

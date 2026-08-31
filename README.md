@@ -101,6 +101,7 @@ When present, `STASSID` and `STAPSK` are automatically added as compiler defines
 | `make` | Open nix-shell (default) |
 | `make build` | Compile the sketch |
 | `make flash` | Flash via USB |
+| `make flash-fs` | Flash filesystem image via USB |
 | `make ota` | Flash via OTA |
 | `make fs` | Build SPIFFS filesystem image |
 | `make ota-fs` | Flash filesystem via OTA |
@@ -139,10 +140,13 @@ make build-blink
 make flash-blink
 ```
 
-If the example has a `data/` directory, ACME also generates a `serve-<example>` target:
+If the example has a `data/` directory, ACME also generates filesystem targets:
 
 ```sh
 make serve-websockets
+make fs-websockets
+make ota-fs-websockets
+make flash-fs-websockets
 ```
 
 ---
