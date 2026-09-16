@@ -1,28 +1,4 @@
 MKDIR ?= ${PWD}
-include ${MKDIR}/utils.mk
-
-.ONESHELL:
-.DEFAULT_GOAL := shell
-MAKEFLAGS += --no-print-directory
-
-# --- default target ---
-.PHONY: shell
-shell:
-	@ nix-shell ${MKDIR} && exit 0 || true
-	$(ERROR) "nix-shell not found. See https://nixos.org/download"
-
-# --- nix check ---
-ifneq ($(MAKECMDGOALS),)
-  ifneq ($(MAKECMDGOALS),shell)
-    ifndef IN_NIX_SHELL
-      $(error Not in nix-shell. Run 'make' or 'make shell')
-    endif
-  endif
-endif
-
-SHELL := /bin/bash
-UNAME_S := $(shell uname -s)
-UNAME_M := $(shell uname -m)
 
 # --- paths ---
 ADATA := ${MKDIR}/bin/data
