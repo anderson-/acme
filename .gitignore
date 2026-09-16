@@ -5,3 +5,4 @@
 bin/
 wifi.yaml
 .libs-downloaded
+.DS_Store
