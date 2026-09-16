@@ -1,63 +1,56 @@
 MKDIR ?= ${PWD}
+SRC   ?= main
 include ${MKDIR}/utils.mk
 
-.ONESHELL:
 .DEFAULT_GOAL := shell
 MAKEFLAGS += --no-print-directory
 
 SHELL := /bin/bash
-UNAME_S := $(shell uname -s)
-UNAME_M := $(shell uname -m)
 
 .PHONY: shell
 shell:
-	@if [ "$$ACME_SHELL_BASE" = "1" ]; then
-		$(OK_S) "ACME shell already active."
-		exit 0
+	@$(MAKE) targets
+	@if [ "$$ACME_SHELL_BASE" = "1" ]; then \
+		$(OK_S) "ACME shell already active."; \
+	else \
+		nix-shell ${MKDIR} || $(ERROR_S) "nix-shell not found. See https://nixos.org/download"; \
 	fi
-	@ nix-shell ${MKDIR} && exit 0 || true
-	$(ERROR) "nix-shell not found. See https://nixos.org/download"
 
-.PHONY: arduino-shell
-arduino-shell:
-	@if [ "$$ACME_SHELL_ARDUINO" = "1" ]; then
-		$(OK_S) "Arduino shell already active."
-		exit 0
-	fi
-	@ nix-shell ${MKDIR}/backends/arduino && exit 0 || true
-	$(ERROR) "nix-shell not found. See https://nixos.org/download"
+PROJECTS   := $(wildcard examples/*/project.yaml examples/*/*/project.yaml ${SRC}/project.yaml)
+NAMES      := $(subst /,-,$(patsubst %/project.yaml,%.mk,$(PROJECTS)))
+NAMES      := $(subst examples-,,$(addprefix .cache/mk/,$(NAMES)))
+CURRENT    := $(wildcard .cache/mk/*.mk)
+CURRENT    := $(filter-out $(NAMES),$(CURRENT))
+TO_RM      := $(addsuffix .rm,$(CURRENT))
 
-SRC  ?= main
-PROP ?= ${SRC}/project.yaml
+define MK
+.cache/mk/$(2).mk: $(1) | .cache/mk
+	@python3 backends/$$$$(grep platform $(1) | cut -d ':' -f 2 | tr -d ' ' | grep . || echo arduino)/gen.py "$$@" "$(1)" "$(2)" "$(3)"
 
-ACME_BACKEND_DIR_arduino := ${MKDIR}/backends/arduino
-ACME_SHELL_ACTIVE_arduino = ${ACME_SHELL_ARDUINO}
+-include .cache/mk/$(2).mk
+endef
 
-# With no explicit goal, include the backend so Make can expose its targets to
-# completion and then follow the default `shell` target.
-ifeq ($(MAKECMDGOALS),)
-  include ${MKDIR}/backends/arduino/backend.mk
-else
-  ACME_PROJECT_GOALS := $(strip $(filter-out shell arduino-shell,$(MAKECMDGOALS)))
+$(foreach p,$(PROJECTS),$(eval $(call MK,$(p),$(subst examples-,,$(subst /,-,$(patsubst %/project.yaml,%,$(p)))),$(patsubst %/project.yaml,%,$(p)))))
 
-  ifneq ($(ACME_PROJECT_GOALS),)
-    ACME_PLATFORM ?= $(strip $(shell sed -n 's/^[[:space:]]*platform:[[:space:]]*//p' "${PROP}" 2>/dev/null))
-    ACME_PLATFORM := $(if $(ACME_PLATFORM),$(ACME_PLATFORM),arduino)
-    ACME_BACKEND_DIR := $(ACME_BACKEND_DIR_${ACME_PLATFORM})
-    ACME_SHELL_ACTIVE := $(ACME_SHELL_ACTIVE_${ACME_PLATFORM})
+.cache/mk:
+	mkdir -p .cache/mk
 
-    ifeq ($(ACME_BACKEND_DIR),)
-      $(error Unknown platform '${ACME_PLATFORM}' in ${PROP})
-    endif
+define RM
+$(1):
+	@rm $(patsubst %.rm,%,$(1))
+endef
 
-    ifneq ($(ACME_SHELL_ACTIVE),)
-      include ${ACME_BACKEND_DIR}/backend.mk
-    else
-      .PHONY: _acme-platform-shell $(ACME_PROJECT_GOALS)
-      $(ACME_PROJECT_GOALS): _acme-platform-shell ;
+$(foreach f,$(TO_RM),$(eval $(call RM,$(f))))
 
-      _acme-platform-shell:
-	@ nix-shell ${ACME_BACKEND_DIR} --command '$(MAKE) $(MAKECMDGOALS); return'
-    endif
-  endif
-endif
+_build_targets: $(NAMES)
+
+_remove_targets: $(TO_RM)
+
+.PHONY: targets
+targets: _build_targets _remove_targets
+
+.PHONY: clean-targets
+clean-targets:
+	rm -rf .cache/mk
+
+include ${MKDIR}/device.mk
