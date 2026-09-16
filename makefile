@@ -84,6 +84,8 @@ ifneq (,$(wildcard ${WIFI}))
 SSID := $(shell yq -r '.ssid // empty' "${WIFI}" 2>/dev/null)
 PSK  := $(shell yq -r '.psk // empty' "${WIFI}" 2>/dev/null)
 FLAGS += -DSTASSID=\"$(SSID)\" -DSTAPSK=\"$(PSK)\"
+else
+WIFI =
 endif
 
 FLAGS += $(if ${DEV},-DDEVELOPMENT,)
@@ -191,7 +193,7 @@ ${STAMP_LIBS}: ${PROP}
 ${BUILD}:
 	mkdir -p ${BUILD}
 
-${STAMP_BUILD}: ${STAMP_LIBS} ${BUILD} ${ADATA}/packages/${CORE} ${FILES}
+${STAMP_BUILD}: ${STAMP_LIBS} ${BUILD} ${ADATA}/packages/${CORE} ${FILES} ${WIFI}
 	@ $(MAKE) _checksrc
 	@ $(foreach sym,$(INJECT),ln -s ${PWD}/$(sym)/* ${PWD}/${SRC} &&) true
 	@ $(foreach sym,$(INJECT), if [ -d "${PWD}/$(sym)" ]; \
