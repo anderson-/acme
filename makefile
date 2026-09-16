@@ -358,6 +358,11 @@ build-$(1):
 .PHONY: flash-$(1)
 flash-$(1):
 	$${MAKE} flash SRC=examples/$(1)
+
+.PHONY: monitor-$(1)
+monitor-$(1):
+	$${MAKE} monitor SRC=examples/$(1)
+
 endef
 
 DATA_EXAMPLES := $(wildcard examples/*/data)
@@ -371,6 +376,10 @@ serve-$(1):
 .PHONY: fs-$(1)
 fs-$(1):
 	$${MAKE} fs SRC=examples/$(1)
+
+.PHONY: ota-$(1)
+ota-$(1):
+	$${MAKE} ota SRC=examples/$(1)
 
 .PHONY: ota-fs-$(1)
 ota-fs-$(1):
