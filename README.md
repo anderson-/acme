@@ -11,10 +11,11 @@ Each `project.yaml` selects a platform. ACME generates the corresponding
 
 ## Requirements
 
-- [Nix](https://nixos.org/download) — manages the Arduino and CH32 toolchains
-- An official ESP-IDF installation — only for `platform: esp-idf`
+- [Nix](https://nixos.org/download) — provides the host tools and isolated shells
 
-Everything else is handled automatically on first run.
+Arduino cores, ESP-IDF, its target toolchains, and ch32fun are installed under
+`bin/` automatically on first use. Versions are isolated, so projects pinned to
+different releases do not overwrite each other.
 
 ---
 
@@ -95,31 +96,58 @@ When present, `STASSID` and `STAPSK` are automatically added as compiler defines
 
 ### ESP-IDF
 
-ESP-IDF projects must contain their standard `CMakeLists.txt`. ACME uses an
-existing official ESP-IDF installation and keeps its build directory under
-`.cache/`.
+For ordinary applications, only `project.yaml` and one or more `.c`/`.cpp`
+files are required. ACME generates the root and component `CMakeLists.txt`,
+`sdkconfig.defaults`, and partition configuration under `.cache/`. An existing
+full ESP-IDF project with its own root `CMakeLists.txt` is still accepted.
+
+The default ESP-IDF release is `v6.0.3`; `version` also accepts a tag, branch,
+or commit hash. The selected release and its official tools are installed in
+versioned directories under `bin/`.
 
 ```yaml
 platform: esp-idf
 target: esp32c3
-idf_path: /path/to/esp-idf
+version: v6.0.3
 baudrate: 115200
+flash_size: 4MB       # 4MB, 8MB, or 16MB
+filesystem: spiffs
+components:             # direct dependencies enable a minimal build
+  - esp_driver_gpio
 defines:
   - MY_FEATURE=1
 ```
 
+The same optional root `wifi.yaml` used by Arduino supplies `WIFI_SSID` and
+`WIFI_PASSWORD` defines to ESP-IDF builds.
+
+The standard partition tables include NVS, OTA metadata, two equal OTA app
+slots, and a `storage` SPIFFS partition. A `data/` directory enables `fs`,
+`flash-fs`, `serve`, and `ota-fs`; firmware OTA uses HTTP `POST /update` and
+filesystem OTA uses `POST /update-fs`. See `examples/esp-idf/ota` for the
+matching device-side server and mDNS advertisement.
+
 ### CH32
 
 CH32 projects use [ch32fun](https://github.com/cnlohr/ch32fun). The source file
-must have the same name as its directory, for example `blink/blink.c`.
+must have the same name as its directory, for example `blink/blink.c`. ch32fun
+is pinned by hash and cloned into a versioned directory under `bin/`. ACME also
+downloads the matching xPack RISC-V compiler for the host and verifies its
+SHA-256 instead of building a cross compiler locally.
 
 ```yaml
 platform: ch32
 mcu: CH32V003
-prefix: riscv64-none-elf
+toolchain: 15.2.0-1
+version: 6670407ae29d06fb6155ca1e0f7a5058918d05d8
+programmer: esp32     # default; minichlink is also supported
 defines:
   - FUNCONF_USE_DEBUGPRINTF=1
 ```
+
+The default `esp32` programmer is `examples/arduino/ch32-programmer`. Build and
+flash that once with Arduino, connect its SWIO pin to the CH32, then CH32
+`flash` and `monitor` targets use `tools/ch32_flash.py` automatically.
 
 ---
 
@@ -131,9 +159,13 @@ defines:
 | `make build-<platform>-<name>` | Compile a project |
 | `make flash-<platform>-<name>` | Build and flash a project |
 | `make monitor-<platform>-<name>` | Open its monitor |
+| `make list-usb-<platform>-<name>` | List serial devices without platform-specific tooling |
+| `make forget-usb-<platform>-<name>` | Forget the saved serial-device choice |
 
-Arduino projects with a `data/` directory additionally receive `serve`, `fs`,
-`flash-fs`, `ota`, and `ota-fs` targets with the same suffix.
+Arduino and ESP-IDF projects with a `data/` directory additionally receive
+`serve`, `fs`, `flash-fs`, and `ota-fs` targets with the same suffix. Both also
+provide firmware `ota`; every platform provides the shared USB discovery
+targets, while network-capable projects provide `scan` and `forget-ota`.
 
 ---
 
@@ -143,7 +175,11 @@ Projects are grouped by platform under `examples/`:
 
 ```sh
 make build-arduino-blink
+make build-arduino-ch32-programmer
 make flash-esp-idf-blink
+make fs-esp-idf-filesystem
+make ota-esp-idf-ota
+make build-ch32-uart
 make monitor-ch32-blink
 ```
 
@@ -181,7 +217,9 @@ On first `flash`, `monitor`, or `ota`, ACME scans for available devices and show
 Select device [1]:
 ```
 
-The selection is saved in `.cache/usb/<sketch>` or `.cache/ota/<sketch>`. If the device is no longer available on the next run, ACME asks whether to clear the saved config and rescan.
+The selection is saved in `.cache/devices/usb/<sketch>` or
+`.cache/devices/ota/<sketch>`. If the device is no longer available on the next
+run, ACME asks whether to clear the saved config and rescan.
 
 ---
 

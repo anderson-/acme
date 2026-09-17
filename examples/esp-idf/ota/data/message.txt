@@ -1,0 +1,1 @@
+This filesystem image can be sent with make ota-fs-esp-idf-ota.

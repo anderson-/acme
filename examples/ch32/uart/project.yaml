@@ -1,0 +1,5 @@
+platform: ch32
+mcu: CH32V003
+programmer: esp32
+defines:
+  - FUNCONF_USE_DEBUGPRINTF=1

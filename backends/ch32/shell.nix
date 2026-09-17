@@ -1,7 +1,10 @@
 { pkgs ? import <nixpkgs> {} }:
 
 let
-  riscv = pkgs.pkgsCross.riscv64-embedded;
+  pythonEnv = pkgs.python311.withPackages (ps: with ps; [
+    pyserial
+    pyyaml
+  ]);
 in
 pkgs.mkShell {
   packages = with pkgs; [
@@ -10,9 +13,7 @@ pkgs.mkShell {
     gnumake
     pkg-config
     libusb1
-    python311
-    python311Packages.pyyaml
-    riscv.stdenv.cc
+    pythonEnv
   ];
 
   shellHook = ''

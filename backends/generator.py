@@ -55,7 +55,7 @@ def render(output, project_file, name, source, platform, variables, actions):
                 f"\t@{command.format(action=action)}",
                 "else",
                 f"\t@nix-shell $(MKDIR)/backends/{platform} "
-                f"--command '{command.format(action=action)}; return'",
+                f"--run '{command.format(action=action)}'",
                 "endif",
                 "",
             ]

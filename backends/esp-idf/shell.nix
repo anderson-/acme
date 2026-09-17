@@ -4,6 +4,7 @@ let
   pythonEnv = pkgs.python311.withPackages (ps: with ps; [
     pyserial
     pyyaml
+    zeroconf
   ]);
 in
 pkgs.mkShell {
@@ -12,12 +13,14 @@ pkgs.mkShell {
     bash
     ccache
     cmake
+    curl
     dfu-util
     git
     gnumake
     ninja
     pkg-config
     libusb1
+    yq-go
   ];
 
   shellHook = ''

@@ -1,0 +1,4 @@
+platform: esp-idf
+target: esp32c3
+flash_size: 4MB
+filesystem: spiffs

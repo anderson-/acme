@@ -46,5 +46,4 @@ MKFS_LITTLEFS := ${ADATA}/packages/${CORE}/tools/mklittlefs/*/mklittlefs
 MKFS_TOOL := $(if $(filter littlefs,$(FS)),${MKFS_LITTLEFS},${MKFS_SPIFFS})
 ESPTOOL := ${ADATA}/packages/${CORE}/tools/esptool_py/*/esptool
 
-include ${MKDIR}/device.mk
 include ${MKDIR}/backends/arduino/targets.mk

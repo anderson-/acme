@@ -131,10 +131,6 @@ flash: ${STAMP_BUILD}
 	$(INFO_S) "Flashing ${SKETCH} to $$PORT..."
 	time ${ARDUINO} upload -p $$PORT --fqbn ${FQBN} -i ${OBJ} ${SRC} -v
 
-.PHONY: resolve-usb
-resolve-usb:
-	$(call _usb_resolve)
-
 # --- filesystem ---
 ${BUILD}/img.bin: ${STAMP_BUILD} ${SRC}/data/*
 	SIZE=$$(grep -E 'spiffs|littlefs' ${BUILD}/partitions.csv | cut -d, -f5)
@@ -152,26 +148,6 @@ flash-fs: ${BUILD}/img.bin
 	time ${ESPTOOL} -p $$PORT write_flash $${OFFSET} ${BUILD}/img.bin
 
 # --- OTA ---
-.PHONY: scan
-scan:
-	$(INFO) "Scanning for OTA devices..."
-	SCAN_RESULT=$$(python3 ${MKDIR}/tools/scan.py 2>/dev/null)
-	if [ -z "$$SCAN_RESULT" ]; then
-		$(ERROR_S) "No OTA device found."
-		exit 1
-	fi
-	$(OK_S) "Found: $$SCAN_RESULT"
-
-.PHONY: forget-usb
-forget-usb:
-	rm -f ${CACHE_USB}
-	$(OK) "USB device config cleared."
-
-.PHONY: forget-ota
-forget-ota:
-	rm -f ${CACHE_OTA}
-	$(OK) "OTA device config cleared."
-
 .PHONY: ota
 ota: ${STAMP_BUILD}
 	$(call _ota_resolve)
@@ -197,18 +173,10 @@ monitor:
 	python3 -m serial.tools.miniterm --raw --xonxoff --exit-char 3 $$PORT ${BAUD}
 
 # --- serve local data dir ---
-.PHONY: serve
-serve:
-	cd ${SRC}/data && python3 -m http.server 8000
-
 # --- board info ---
 .PHONY: list-boards
 list-boards:
 	${ARDUINO} board listall
-
-.PHONY: list-usb
-list-usb:
-	${ARDUINO} board list
 
 # --- clean targets ---
 .PHONY: clean

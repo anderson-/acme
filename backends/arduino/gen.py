@@ -9,8 +9,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from generator import generate, make_list
 
 
-ACTIONS = ("build", "flash", "monitor")
-DATA_ACTIONS = ("serve", "fs", "ota", "ota-fs", "flash-fs")
+ACTIONS = (
+    "build", "flash", "monitor", "ota", "scan", "list-usb",
+    "forget-usb", "forget-ota",
+)
+DATA_ACTIONS = ("serve", "fs", "ota-fs", "flash-fs")
 
 
 def variables(project):

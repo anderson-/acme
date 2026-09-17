@@ -18,7 +18,7 @@ shell:
 		$(MAKE) targets; \
 		$(OK_S) "ACME shell already active."; \
 	else \
-		nix-shell ${MKDIR} --command 'make targets; return'; \
+		nix-shell ${MKDIR} --run 'make targets'; \
 		STATUS=$$?; \
 		if [ "$$STATUS" -ne 0 ]; then \
 			$(ERROR_S) "nix-shell not found. See https://nixos.org/download"; \
@@ -36,7 +36,7 @@ STALE_TARGET_FILES  := $(filter-out $(TARGET_FILES),$(CACHED_TARGET_FILES))
 STALE_TARGETS       := $(addsuffix .rm,$(STALE_TARGET_FILES))
 
 define GENERATE_TARGET_FILE
-.cache/mk/$(2).mk: $(1) | .cache/mk
+.cache/mk/$(2).mk: $(1) ${MKDIR}/backends/generate.py ${MKDIR}/backends/generator.py $(wildcard ${MKDIR}/backends/*/gen.py) | .cache/mk
 	@python3 ${MKDIR}/backends/generate.py "$$@" "$(1)" "$(notdir $(3))" "$(3)"
 
 -include .cache/mk/$(2).mk
