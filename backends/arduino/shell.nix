@@ -22,6 +22,7 @@ pkgs.mkShell {
     bash
     bash-completion
     arduino-cli
+    universal-ctags
   ];
 
   shellHook = ''

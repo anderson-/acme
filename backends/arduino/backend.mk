@@ -5,6 +5,8 @@ ADATA := ${MKDIR}/bin/data
 ALIBS := ${MKDIR}/bin
 CFG   ?= ${ADATA}/arduino-cli.yaml
 
+# Arduino only publishes an Intel ctags binary for macOS; use Nix's native one.
+CTAGS_PATH := $(shell dirname "$$(command -v ctags)")
 ARDUINO := ARDUINO_DATA_DIR=${ADATA} arduino-cli --config-file ${CFG}
 
 # --- sketch ---

@@ -104,6 +104,7 @@ ${STAMP_BUILD}: ${STAMP_LIBS} ${BUILD} ${ADATA}/packages/${CORE} ${FILES} ${WIFI
 	trap "kill -- -$$WATCH_PID 2>/dev/null; wait $$WATCH_PID 2>/dev/null; printf '\r\033[K' >&2" EXIT INT TERM; \
 	CMD="${ARDUINO} compile --fqbn ${FQBN} \
 		$(foreach lib,$(LIB_DIRS),--libraries ${PWD}/$(lib)) \
+		--build-property 'runtime.tools.ctags.path=${CTAGS_PATH}' \
 		--build-property 'compiler.cpp.extra_flags=${FLAGS}' \
 		--build-property 'compiler.c.extra_flags=${FLAGS}' \
 		--build-path ${BUILD} ${SRC} -v"; \
