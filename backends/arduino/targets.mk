@@ -12,7 +12,6 @@ _checksrc:
 
 .PHONY: fields
 fields:
-	@echo "YAML_CACHE: ${YAML_CACHE}"
 	@echo "=== Project Fields ==="
 	@echo "FQBN: ${FQBN}"
 	@echo "CORE: ${CORE}"
@@ -93,7 +92,6 @@ ${BUILD}:
 
 ${STAMP_BUILD}: ${STAMP_LIBS} ${BUILD} ${ADATA}/packages/${CORE} ${FILES} ${WIFI}
 	@ $(MAKE) _checksrc
-	@ $(foreach sym,$(INJECT),ln -s ${PWD}/$(sym)/* ${PWD}/${SRC} &&) true
 	@ $(foreach sym,$(INJECT), if [ -d "${PWD}/$(sym)" ]; \
 	    then ln -sf ${PWD}/$(sym)/* ${PWD}/${SRC}; \
 	    else ln -sf ${PWD}/$(sym) ${PWD}/${SRC}/; \
@@ -246,50 +244,3 @@ clean-bin:
 	fi
 	rm -rf ${MKDIR}/bin
 	$(OK) "Binaries removed."
-
-# --- example targets ---
-EXAMPLES := $(wildcard examples/*)
-EXAMPLE_NAMES := $(notdir $(EXAMPLES))
-
-define EXAMPLE_TARGETS
-.PHONY: build-$(1)
-build-$(1):
-	$${MAKE} build SRC=examples/$(1)
-
-.PHONY: flash-$(1)
-flash-$(1):
-	$${MAKE} flash SRC=examples/$(1)
-
-.PHONY: monitor-$(1)
-monitor-$(1):
-	$${MAKE} monitor SRC=examples/$(1)
-
-endef
-
-DATA_EXAMPLES := $(wildcard examples/*/data)
-DATA_EXAMPLE_NAMES := $(notdir $(patsubst %/data,%,$(DATA_EXAMPLES)))
-
-define DATA_EXAMPLE_TARGETS
-.PHONY: serve-$(1)
-serve-$(1):
-	cd examples/$(1)/data && python3 -m http.server 8000
-
-.PHONY: fs-$(1)
-fs-$(1):
-	$${MAKE} fs SRC=examples/$(1)
-
-.PHONY: ota-$(1)
-ota-$(1):
-	$${MAKE} ota SRC=examples/$(1)
-
-.PHONY: ota-fs-$(1)
-ota-fs-$(1):
-	$${MAKE} ota-fs SRC=examples/$(1)
-
-.PHONY: flash-fs-$(1)
-flash-fs-$(1):
-	$${MAKE} flash-fs SRC=examples/$(1)
-endef
-
-$(foreach example,$(EXAMPLE_NAMES),$(eval $(call EXAMPLE_TARGETS,$(example))))
-$(foreach example,$(DATA_EXAMPLE_NAMES),$(eval $(call DATA_EXAMPLE_TARGETS,$(example))))

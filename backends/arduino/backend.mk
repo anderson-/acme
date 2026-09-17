@@ -9,28 +9,6 @@ CFG   ?= ${ADATA}/arduino-cli.yaml
 CTAGS_PATH := $(shell dirname "$$(command -v ctags)")
 ARDUINO := ARDUINO_DATA_DIR=${ADATA} arduino-cli --config-file ${CFG}
 
-# --- sketch ---
-SRC    ?= main
-PROP   ?= ${SRC}/project.yaml
-SKETCH := $(notdir ${SRC})
-
-YAML_SEP := |
-YAML_CACHE := $(shell yq -r '[ \
-  .board // "", \
-  (.baudrate // "115200"), \
-  (.dependencies // [] | join(" ")), \
-  (.lib_dirs // [] | join(" ")), \
-  (.inject // [] | join(" ")), \
-  (.defines // [] | join(" ")), \
-  (.filesystem // "spiffs") \
-] | join("${YAML_SEP}")' "${PROP}" 2>/dev/null)
-
-_yaml_field = $(shell echo "${YAML_CACHE}" | cut -d'${YAML_SEP}' -f$(1))
-
-# --- board / core ---
-FQBN         := $(call _yaml_field,1)
-CORE         := $(shell echo ${FQBN} | cut -d: -f1)
-
 # --- build paths ---
 BUILD       := ${MKDIR}/.cache/build/${CORE}/${SRC}
 OBJ         := ${BUILD}/${SKETCH}.ino.elf
@@ -41,14 +19,6 @@ LOG         := ${BUILD}.log
 # --- source files ---
 RWC = $(foreach d,$(wildcard $1*),$(call RWC,$d/,$2) $(filter $(subst *,%,$2),$d))
 SRC_FILES := $(call RWC,${SRC},*.c *.cpp *.h *.hpp *.ino)
-
-# --- project.yaml fields ---
-BAUD         := $(call _yaml_field,2)
-DEPENDENCIES := $(call _yaml_field,3)
-LIB_DIRS     := $(call _yaml_field,4)
-INJECT       := $(call _yaml_field,5)
-DEFINES_LIST := $(call _yaml_field,6)
-FS           := $(call _yaml_field,7)
 
 LOCAL_LIB_FILES := $(foreach lib,$(LIB_DIRS),$(call RWC,${PWD}/$(lib),*.c *.cpp *.h *.hpp))
 FILES := ${SRC_FILES} ${LOCAL_LIB_FILES}
