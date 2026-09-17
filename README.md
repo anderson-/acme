@@ -1,16 +1,18 @@
-# ACME — Arduino CLI Maker Essentials
+# ACME — Embedded build targets
 
-A Makefile that simplifies `arduino-cli` usage in a reproducible environment,
-aimed at speeding up microcontroller project development.
+Generated Make targets for Arduino, ESP-IDF, and CH32 projects in reproducible
+Nix environments.
 
-Dependencies are managed automatically: `arduino-cli`, cores, and libraries
-are downloaded on first build and kept locally inside the project.
+Each `project.yaml` selects a platform. ACME generates the corresponding
+`build-<platform>-<name>`, `flash-<platform>-<name>`, and
+`monitor-<platform>-<name>` targets.
 
 ---
 
 ## Requirements
 
-- [Nix](https://nixos.org/download) — manages the entire toolchain (`arduino-cli`, `python3`, `yq`, etc.)
+- [Nix](https://nixos.org/download) — manages the Arduino and CH32 toolchains
+- An official ESP-IDF installation — only for `platform: esp-idf`
 
 Everything else is handled automatically on first run.
 
@@ -19,17 +21,11 @@ Everything else is handled automatically on first run.
 ## Getting started
 
 ```sh
-# Enter the development environment
+# Generate project targets
 make
 
-# Build the default sketch (main/)
-make build
-
-# Flash via USB
-make flash
-
-# Flash via OTA
-make ota
+# Build an example
+make build-arduino-blink
 ```
 
 On first `flash` or `ota`, ACME scans for available devices and asks you to pick one. The choice is saved — next time it just works.
@@ -40,9 +36,11 @@ On first `flash` or `ota`, ACME scans for available devices and asks you to pick
 
 ```
 your-project/
-  main/
-    main.ino
-    project.yaml     # board, dependencies, and build config
+  examples/
+    arduino/
+      blink/
+        blink.ino
+        project.yaml
   wifi.yaml          # optional, git-ignored WiFi credentials
   acme.mk            # copied from ACME repo
   makefile           # one-liner that includes ACME
@@ -60,9 +58,12 @@ your-project/
 
 ---
 
-## project.yaml
+## Platforms
+
+### Arduino
 
 ```yaml
+platform: arduino
 board: esp32:esp32:m5stack_cardputer
 baudrate: 115200
 
@@ -92,61 +93,67 @@ psk: mypassword
 
 When present, `STASSID` and `STAPSK` are automatically added as compiler defines.
 
+### ESP-IDF
+
+ESP-IDF projects must contain their standard `CMakeLists.txt`. ACME uses an
+existing official ESP-IDF installation and keeps its build directory under
+`.cache/`.
+
+```yaml
+platform: esp-idf
+target: esp32c3
+idf_path: /path/to/esp-idf
+baudrate: 115200
+defines:
+  - MY_FEATURE=1
+```
+
+### CH32
+
+CH32 projects use [ch32fun](https://github.com/cnlohr/ch32fun). The source file
+must have the same name as its directory, for example `blink/blink.c`.
+
+```yaml
+platform: ch32
+mcu: CH32V003
+prefix: riscv64-none-elf
+defines:
+  - FUNCONF_USE_DEBUGPRINTF=1
+```
+
 ---
 
 ## Targets
 
 | Target | Description |
 |---|---|
-| `make` | Open nix-shell (default) |
-| `make build` | Compile the sketch |
-| `make flash` | Flash via USB |
-| `make flash-fs` | Flash filesystem image via USB |
-| `make ota` | Flash via OTA |
-| `make fs` | Build SPIFFS filesystem image |
-| `make ota-fs` | Flash filesystem via OTA |
-| `make monitor` | Open serial monitor |
-| `make deploy` | Build without `DEVELOPMENT` flag |
-| `make scan` | Scan for OTA devices on the network |
-| `make list-usb` | List connected USB boards |
-| `make list-boards` | List all known boards |
-| `make serve` | Serve `data/` on http://localhost:8000 |
+| `make` | Generate project targets (default) |
+| `make build-<platform>-<name>` | Compile a project |
+| `make flash-<platform>-<name>` | Build and flash a project |
+| `make monitor-<platform>-<name>` | Open its monitor |
 
-**Clean targets:**
-
-| Target | Description |
-|---|---|
-| `make clean` | Remove build stamp (forces recompile) |
-| `make clean-libs` | Remove libs stamp (forces re-download) |
-| `make clean-build` | Remove build cache |
-| `make clean-all` | Remove all cache |
-| `make clean-bin CONFIRM=yes` | Remove downloaded binaries and libraries |
-
-**Device config:**
-
-| Target | Description |
-|---|---|
-| `make forget-usb` | Clear saved USB port |
-| `make forget-ota` | Clear saved OTA address |
+Arduino projects with a `data/` directory additionally receive `serve`, `fs`,
+`flash-fs`, `ota`, and `ota-fs` targets with the same suffix.
 
 ---
 
 ## Examples
 
-If the project has an `examples/` directory, ACME generates targets automatically:
+Projects are grouped by platform under `examples/`:
 
 ```sh
-make build-blink
-make flash-blink
+make build-arduino-blink
+make flash-esp-idf-blink
+make monitor-ch32-blink
 ```
 
 If the example has a `data/` directory, ACME also generates filesystem targets:
 
 ```sh
-make serve-websockets
-make fs-websockets
-make ota-fs-websockets
-make flash-fs-websockets
+make serve-arduino-websockets
+make fs-arduino-websockets
+make ota-fs-arduino-websockets
+make flash-fs-arduino-websockets
 ```
 
 ---
@@ -156,10 +163,10 @@ make flash-fs-websockets
 Override any of these on the command line:
 
 ```sh
-make build SRC=examples/blink
-make flash PORT=/dev/cu.usbmodem1234
-make ota OTAIP=192.168.1.42 OTAPORT=3232
-make monitor BAUD=9600
+make build-arduino-blink
+make flash-arduino-blink PORT=/dev/cu.usbmodem1234
+make ota-arduino-websockets OTAIP=192.168.1.42 OTAPORT=3232
+make monitor-esp-idf-app BAUD=9600
 ```
 
 ---

@@ -1,7 +1,7 @@
 CACHE_USB := ${MKDIR}/.cache/usb/$(subst ${PWD}/,,${SRC})
 CACHE_OTA := ${MKDIR}/.cache/ota/$(subst ${PWD}/,,${SRC})
 
-BAUD := $(shell yq -r '.baudrate // "115200"' "${PROP}" 2>/dev/null)
+USB_SCAN ?= ARDUINO_DATA_DIR=${ADATA} arduino-cli --config-file ${CFG} board list 2>/dev/null | grep -v "^Port" | grep "serial"
 
 # --- resolves USB port, interactively if needed ---
 define _usb_resolve
@@ -20,8 +20,7 @@ define _usb_resolve
 		fi; \
 	else \
 		$(INFO_S) "Scanning USB devices..."; \
-		ARDUINO_DATA_DIR=${ADATA} arduino-cli --config-file ${CFG} board list 2>/dev/null \
-			| grep -v "^Port" | grep "serial" > /tmp/acme-usb; \
+		${USB_SCAN} > /tmp/acme-usb; \
 		if [ ! -s /tmp/acme-usb ]; then \
 			$(ERROR_S) "No USB devices found."; \
 			exit 1; \

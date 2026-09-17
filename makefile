@@ -37,7 +37,7 @@ STALE_TARGETS       := $(addsuffix .rm,$(STALE_TARGET_FILES))
 
 define GENERATE_TARGET_FILE
 .cache/mk/$(2).mk: $(1) | .cache/mk
-	@python3 ${MKDIR}/backends/$$$$(grep platform $(1) | cut -d ':' -f 2 | tr -d ' ' | grep . || echo arduino)/gen.py "$$@" "$(1)" "$(2)" "$(3)"
+	@python3 ${MKDIR}/backends/generate.py "$$@" "$(1)" "$(notdir $(3))" "$(3)"
 
 -include .cache/mk/$(2).mk
 endef
