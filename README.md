@@ -1,6 +1,7 @@
 # ACME — Embedded build targets
 
-Generated Make targets for Arduino projects in reproducible Nix environments.
+Generated Make targets for Arduino and CH32 projects in reproducible Nix
+environments.
 
 Each `project.yaml` selects a platform. ACME generates the corresponding
 `build-<platform>-<name>`, `flash-<platform>-<name>`, and
@@ -12,9 +13,9 @@ Each `project.yaml` selects a platform. ACME generates the corresponding
 
 - [Nix](https://nixos.org/download) — provides the host tools and isolated shells
 
-Arduino cores are installed under `bin/` automatically on first use. Versions
-are isolated, so projects pinned to different releases do not overwrite each
-other.
+Arduino cores, the CH32 RISC-V compiler, and ch32fun are installed under `bin/`
+automatically on first use. Versions are isolated, so projects pinned to
+different releases do not overwrite each other.
 
 ---
 
@@ -59,7 +60,9 @@ your-project/
 
 ---
 
-## Platform: Arduino
+## Platforms
+
+### Arduino
 
 ```yaml
 platform: arduino
@@ -92,6 +95,28 @@ psk: mypassword
 
 When present, `STASSID` and `STAPSK` are automatically added as compiler defines.
 
+### CH32
+
+CH32 projects use [ch32fun](https://github.com/cnlohr/ch32fun). The source file
+must have the same name as its directory, for example `blink/blink.c`. ch32fun
+is pinned by hash and cloned into a versioned directory under `bin/`. ACME also
+downloads the matching xPack RISC-V compiler for the host and verifies its
+SHA-256 instead of building a cross compiler locally.
+
+```yaml
+platform: ch32
+mcu: CH32V003
+toolchain: 15.2.0-1
+version: 6670407ae29d06fb6155ca1e0f7a5058918d05d8
+programmer: esp32     # default; minichlink is also supported
+defines:
+  - FUNCONF_USE_DEBUGPRINTF=1
+```
+
+The default `esp32` programmer is `examples/arduino/ch32-programmer`. Build and
+flash that once with Arduino, connect its SWIO pin to the CH32, then the CH32
+`flash` and `monitor` targets use `tools/ch32_flash.py` automatically.
+
 ---
 
 ## Targets
@@ -121,6 +146,10 @@ make build-arduino-blink-c3-zero
 make build-arduino-ota32
 make build-arduino-ota8266
 make build-arduino-websockets
+make build-arduino-ch32-programmer
+make build-ch32-blink
+make build-ch32-uart
+make flash-ch32-blink
 ```
 
 If the example has a `data/` directory, ACME also generates filesystem targets:

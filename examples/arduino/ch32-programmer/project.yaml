@@ -1,0 +1,6 @@
+platform: arduino
+board: esp32:esp32:esp32c3:CDCOnBoot=cdc
+baudrate: 115200
+defines:
+  - DEFAULT_T1COEFF=7
+  - SWIO_PIN=6
