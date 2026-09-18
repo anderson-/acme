@@ -40,10 +40,11 @@ ${STAGE}/CMakeLists.txt: ${PROP} ${PARTITIONS} ${MKDIR}/backends/idf/project.py 
 		--source "${SRC}" --output "${STAGE}" --name "${SKETCH}" \
 		--target "${TARGET}" --flash-size "${FLASH_SIZE}" \
 		--filesystem "${FS}" --partitions "${PARTITIONS}" \
-		--components "${COMPONENTS_LIST}"
+		--components "${COMPONENTS_LIST}" \
+		--sdkconfig "${SDKCONFIG_LIST}"
 
 .PHONY: build
-build: _checksrc ${IDF_INSTALLED} ${PROJECT_READY}
+build: _checksrc ${IDF_INSTALLED} ${PROJECT_READY} ${CONFIG_STAMP}
 	mkdir -p ${BUILD}
 	rm -f ${LOG}
 	$(call _idf_env)

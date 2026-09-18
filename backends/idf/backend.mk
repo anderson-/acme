@@ -18,12 +18,30 @@ DEFINES :=
 WIFI := ${MKDIR}/wifi.yaml
 
 ifneq (,$(wildcard ${WIFI}))
-SSID := $(shell yq -r '.ssid // empty' "${WIFI}" 2>/dev/null)
-PSK := $(shell yq -r '.psk // empty' "${WIFI}" 2>/dev/null)
+# '.ssid // ""' parses with both python-yq (jq) and yq-go (mikefarah);
+# '// empty' is jq-only and fails silently on yq-go.
+SSID := $(shell yq -r '.ssid // ""' "${WIFI}" 2>/dev/null)
+PSK := $(shell yq -r '.psk // ""' "${WIFI}" 2>/dev/null)
 ifneq (,$(strip ${SSID}))
 DEFINES += -DWIFI_SSID=\"$(SSID)\" -DWIFI_PASSWORD=\"$(PSK)\"
+else
+$(warning wifi.yaml exists but '.ssid' is empty/unreadable (is yq installed?); building without WIFI_SSID)
 endif
 endif
+
+# EXTRA_CFLAGS is only re-read by cmake at configure time (tools/cmake/project.cmake),
+# so a change to any support file must force a fresh configure. Deleting the whole
+# build dir guarantees the next 'idf.py build' reconfigures and recompiles with the
+# new flags instead of silently reusing stale ones.
+CONFIG_SRC := $(if $(wildcard ${WIFI}),${WIFI}) ${PROP} ${PARTITIONS} \
+	${MKDIR}/backends/idf/project.py ${MKDIR}/backends/idf/backend.mk \
+	${MKDIR}/backends/idf/targets.mk
+CONFIG_STAMP := ${BUILD}/.config-stamp
+
+${CONFIG_STAMP}: ${CONFIG_SRC}
+	@rm -rf ${BUILD}
+	@mkdir -p ${BUILD}
+	@touch $@
 
 DEFINES += $(foreach def,${DEFINES_LIST},-D$(def))
 

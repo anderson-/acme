@@ -30,6 +30,7 @@ def variables(project):
         "OTA_FS_PATH": project.get("ota_fs_path", "/update-fs"),
         "COMPONENTS_LIST": make_list(project.get("components")),
         "DEFINES_LIST": make_list(project.get("defines")),
+        "SDKCONFIG_LIST": make_list(project.get("sdkconfig")),
     }
 
 

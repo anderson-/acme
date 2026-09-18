@@ -16,6 +16,7 @@ def main():
     parser.add_argument("--filesystem", required=True)
     parser.add_argument("--partitions", type=Path, required=True)
     parser.add_argument("--components", default="")
+    parser.add_argument("--sdkconfig", default="")
     args = parser.parse_args()
 
     sources = sorted(
@@ -68,13 +69,20 @@ def main():
     (component / "CMakeLists.txt").write_text(component_cmake, encoding="utf-8")
 
     size = args.flash_size.upper()
-    (args.output / "sdkconfig.defaults").write_text(
+    extra = [line for line in args.sdkconfig.split() if line]
+    defaults = (
         "CONFIG_PARTITION_TABLE_CUSTOM=y\n"
         'CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"\n'
         'CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"\n'
-        f"CONFIG_ESPTOOLPY_FLASHSIZE_{size}=y\n",
-        encoding="utf-8",
+        f"CONFIG_ESPTOOLPY_FLASHSIZE_{size}=y\n"
     )
+    if extra:
+        # The example's own configuration (project.yaml `sdkconfig:` list): PSRAM,
+        # tick rate, CPU frequency, watchdogs, TLS bundle -- whatever the board or the
+        # firmware needs beyond the partition table. Later lines win in ESP-IDF's
+        # defaults handling, so a project can override the base ones if it wants.
+        defaults += "\n" + "\n".join(extra) + "\n"
+    (args.output / "sdkconfig.defaults").write_text(defaults, encoding="utf-8")
 
 
 if __name__ == "__main__":
