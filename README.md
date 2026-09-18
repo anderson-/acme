@@ -1,38 +1,35 @@
-# ACME — Arduino CLI Maker Essentials
+# ACME — Embedded build targets
 
-A Makefile that simplifies `arduino-cli` usage in a reproducible environment,
-aimed at speeding up microcontroller project development.
+Generated Make targets for Arduino projects in reproducible Nix environments.
 
-Dependencies are managed automatically: `arduino-cli`, cores, and libraries
-are downloaded on first build and kept locally inside the project.
+Each `project.yaml` selects a platform. ACME generates the corresponding
+`build-<platform>-<name>`, `flash-<platform>-<name>`, and
+`monitor-<platform>-<name>` targets.
 
 ---
 
 ## Requirements
 
-- [Nix](https://nixos.org/download) — manages the entire toolchain (`arduino-cli`, `python3`, `yq`, etc.)
+- [Nix](https://nixos.org/download) — provides the host tools and isolated shells
 
-Everything else is handled automatically on first run.
+Arduino cores are installed under `bin/` automatically on first use. Versions
+are isolated, so projects pinned to different releases do not overwrite each
+other.
 
 ---
 
 ## Getting started
 
 ```sh
-# Enter the development environment
+# Generate project targets
 make
 
-# Build the default sketch (main/)
-make build
-
-# Flash via USB
-make flash
-
-# Flash via OTA
-make ota
+# Build an example
+make build-arduino-blink
 ```
 
-On first `flash` or `ota`, ACME scans for available devices and asks you to pick one. The choice is saved — next time it just works.
+On first `flash` or `ota`, ACME scans for available devices and asks you to pick
+one. The choice is saved — next time it just works.
 
 ---
 
@@ -40,9 +37,11 @@ On first `flash` or `ota`, ACME scans for available devices and asks you to pick
 
 ```
 your-project/
-  main/
-    main.ino
-    project.yaml     # board, dependencies, and build config
+  examples/
+    arduino/
+      blink/
+        blink.ino
+        project.yaml
   wifi.yaml          # optional, git-ignored WiFi credentials
   acme.mk            # copied from ACME repo
   makefile           # one-liner that includes ACME
@@ -60,9 +59,10 @@ your-project/
 
 ---
 
-## project.yaml
+## Platform: Arduino
 
 ```yaml
+platform: arduino
 board: esp32:esp32:m5stack_cardputer
 baudrate: 115200
 
@@ -98,55 +98,38 @@ When present, `STASSID` and `STAPSK` are automatically added as compiler defines
 
 | Target | Description |
 |---|---|
-| `make` | Open nix-shell (default) |
-| `make build` | Compile the sketch |
-| `make flash` | Flash via USB |
-| `make flash-fs` | Flash filesystem image via USB |
-| `make ota` | Flash via OTA |
-| `make fs` | Build SPIFFS filesystem image |
-| `make ota-fs` | Flash filesystem via OTA |
-| `make monitor` | Open serial monitor |
-| `make deploy` | Build without `DEVELOPMENT` flag |
-| `make scan` | Scan for OTA devices on the network |
-| `make list-usb` | List connected USB boards |
-| `make list-boards` | List all known boards |
-| `make serve` | Serve `data/` on http://localhost:8000 |
+| `make` | Generate project targets (default) |
+| `make build-<platform>-<name>` | Compile a project |
+| `make flash-<platform>-<name>` | Build and flash a project |
+| `make monitor-<platform>-<name>` | Open its monitor |
+| `make list-usb-<platform>-<name>` | List serial devices without platform-specific tooling |
+| `make forget-usb-<platform>-<name>` | Forget the saved serial-device choice |
 
-**Clean targets:**
-
-| Target | Description |
-|---|---|
-| `make clean` | Remove build stamp (forces recompile) |
-| `make clean-libs` | Remove libs stamp (forces re-download) |
-| `make clean-build` | Remove build cache |
-| `make clean-all` | Remove all cache |
-| `make clean-bin CONFIRM=yes` | Remove downloaded binaries and libraries |
-
-**Device config:**
-
-| Target | Description |
-|---|---|
-| `make forget-usb` | Clear saved USB port |
-| `make forget-ota` | Clear saved OTA address |
+Projects with a `data/` directory additionally receive `serve`, `fs`,
+`flash-fs`, and `ota-fs` targets. Network-capable projects provide firmware
+`ota`. Every project provides the shared USB discovery targets.
 
 ---
 
 ## Examples
 
-If the project has an `examples/` directory, ACME generates targets automatically:
+Projects are grouped by platform under `examples/`:
 
 ```sh
-make build-blink
-make flash-blink
+make build-arduino-blink
+make build-arduino-blink-c3-zero
+make build-arduino-ota32
+make build-arduino-ota8266
+make build-arduino-websockets
 ```
 
 If the example has a `data/` directory, ACME also generates filesystem targets:
 
 ```sh
-make serve-websockets
-make fs-websockets
-make ota-fs-websockets
-make flash-fs-websockets
+make serve-arduino-websockets
+make fs-arduino-websockets
+make ota-fs-arduino-websockets
+make flash-fs-arduino-websockets
 ```
 
 ---
@@ -156,17 +139,18 @@ make flash-fs-websockets
 Override any of these on the command line:
 
 ```sh
-make build SRC=examples/blink
-make flash PORT=/dev/cu.usbmodem1234
-make ota OTAIP=192.168.1.42 OTAPORT=3232
-make monitor BAUD=9600
+make build-arduino-blink
+make flash-arduino-blink PORT=/dev/cu.usbmodem1234
+make ota-arduino-websockets OTAIP=192.168.1.42 OTAPORT=3232
+make monitor-arduino-blink BAUD=9600
 ```
 
 ---
 
 ## Device selection
 
-On first `flash`, `monitor`, or `ota`, ACME scans for available devices and shows an interactive list:
+On first `flash`, `monitor`, or `ota`, ACME scans for available devices and
+shows an interactive list:
 
 ```
   1) /dev/cu.usbmodem1123401   serial   ESP32 Family Device
@@ -174,7 +158,9 @@ On first `flash`, `monitor`, or `ota`, ACME scans for available devices and show
 Select device [1]:
 ```
 
-The selection is saved in `.cache/usb/<sketch>` or `.cache/ota/<sketch>`. If the device is no longer available on the next run, ACME asks whether to clear the saved config and rescan.
+The selection is saved in `.cache/devices/usb/<sketch>` or
+`.cache/devices/ota/<sketch>`. If the device is no longer available on the next
+run, ACME asks whether to clear the saved config and rescan.
 
 ---
 

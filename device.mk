@@ -1,7 +1,9 @@
-CACHE_USB := ${MKDIR}/.cache/usb/$(subst ${PWD}/,,${SRC})
-CACHE_OTA := ${MKDIR}/.cache/ota/$(subst ${PWD}/,,${SRC})
+CACHE_USB := ${MKDIR}/.cache/devices/usb/$(subst ${PWD}/,,${SRC})
+CACHE_OTA := ${MKDIR}/.cache/devices/ota/$(subst ${PWD}/,,${SRC})
 
-BAUD := $(shell yq -r '.baudrate // "115200"' "${PROP}" 2>/dev/null)
+USB_SCAN ?= python3 -c "import serial.tools.list_ports as p; [print(x.device, 'serial', x.description, x.hwid) for x in p.comports()]"
+USB_RESULTS := ${MKDIR}/.cache/devices/usb.scan
+OTA_RESULTS := ${MKDIR}/.cache/devices/ota.scan
 
 # --- resolves USB port, interactively if needed ---
 define _usb_resolve
@@ -20,9 +22,9 @@ define _usb_resolve
 		fi; \
 	else \
 		$(INFO_S) "Scanning USB devices..."; \
-		ARDUINO_DATA_DIR=${ADATA} arduino-cli --config-file ${CFG} board list 2>/dev/null \
-			| grep -v "^Port" | grep "serial" > /tmp/acme-usb; \
-		if [ ! -s /tmp/acme-usb ]; then \
+		mkdir -p $(dir ${USB_RESULTS}); \
+		${USB_SCAN} > ${USB_RESULTS}; \
+		if [ ! -s ${USB_RESULTS} ]; then \
 			$(ERROR_S) "No USB devices found."; \
 			exit 1; \
 		fi; \
@@ -30,11 +32,11 @@ define _usb_resolve
 		while IFS= read -r line; do \
 			printf "  %d) %s\n" $$i "$$line"; \
 			i=$$((i+1)); \
-		done < /tmp/acme-usb; \
+		done < ${USB_RESULTS}; \
 		printf "Select device [1]: "; \
 		read CHOICE; \
 		CHOICE=$${CHOICE:-1}; \
-		PORT=$$(sed -n "$${CHOICE}p" /tmp/acme-usb | tr -s ' ' | cut -d' ' -f1); \
+		PORT=$$(sed -n "$${CHOICE}p" ${USB_RESULTS} | tr -s ' ' | cut -d' ' -f1); \
 		if [ -z "$$PORT" ]; then \
 			$(ERROR_S) "Invalid selection."; \
 			exit 1; \
@@ -63,8 +65,9 @@ define _ota_resolve
 		fi; \
 	else \
 		$(INFO_S) "Scanning for OTA devices..."; \
-		python3 ${MKDIR}/tools/scan.py 2>/dev/null > /tmp/acme-ota; \
-		if [ ! -s /tmp/acme-ota ]; then \
+		mkdir -p $(dir ${OTA_RESULTS}); \
+		python3 ${MKDIR}/tools/scan.py 2>/dev/null > ${OTA_RESULTS}; \
+		if [ ! -s ${OTA_RESULTS} ]; then \
 			$(ERROR_S) "No OTA devices found."; \
 			exit 1; \
 		fi; \
@@ -72,11 +75,11 @@ define _ota_resolve
 		while IFS= read -r line; do \
 			printf "  %d) %s\n" $$i "$$line"; \
 			i=$$((i+1)); \
-		done < /tmp/acme-ota; \
+		done < ${OTA_RESULTS}; \
 		printf "Select device [1]: "; \
 		read CHOICE; \
 		CHOICE=$${CHOICE:-1}; \
-		SCAN_RESULT=$$(sed -n "$${CHOICE}p" /tmp/acme-ota); \
+		SCAN_RESULT=$$(sed -n "$${CHOICE}p" ${OTA_RESULTS}); \
 		if [ -z "$$SCAN_RESULT" ]; then \
 			$(ERROR_S) "Invalid selection."; \
 			exit 1; \
@@ -87,3 +90,24 @@ define _ota_resolve
 		$(OK_S) "Saved: $$SCAN_RESULT"; \
 	fi
 endef
+
+.PHONY: resolve-usb list-usb forget-usb scan forget-ota serve
+resolve-usb:
+	$(call _usb_resolve)
+
+list-usb:
+	@${USB_SCAN}
+
+forget-usb:
+	rm -f ${CACHE_USB}
+	$(OK) "USB device config cleared."
+
+scan:
+	@python3 ${MKDIR}/tools/scan.py
+
+forget-ota:
+	rm -f ${CACHE_OTA}
+	$(OK) "OTA device config cleared."
+
+serve:
+	cd ${SRC}/data && python3 -m http.server 8000

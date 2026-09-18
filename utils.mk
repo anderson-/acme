@@ -24,7 +24,11 @@ define file_spinner
 		local last_time=0; \
 		local green_until=0; \
 		while true; do \
-			current_size=$$(wc -c < "$(1)" 2>/dev/null || echo 0); \
+			if [ -f "$(1)" ]; then \
+				current_size=$$(wc -c < "$(1)" 2>/dev/null || echo 0); \
+			else \
+				current_size=0; \
+			fi; \
 			current_time=$$(date +%s%3N); \
 			if [ "$$current_size" != "$$last_size" ] && [ $$((current_time - last_time)) -ge 50 ]; then \
 				printf "\r\033[K\033[92m%s %s\033[0m" "$${frames:$$((i%8)):1}" "$(2)" >&2; \
