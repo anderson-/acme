@@ -1,0 +1,7 @@
+platform: idf
+target: esp32c3
+flash_size: 4MB
+components:
+  - esp_driver_gpio
+defines:
+  - LED_GPIO=8

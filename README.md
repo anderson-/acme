@@ -1,7 +1,7 @@
 # ACME — Embedded build targets
 
-Generated Make targets for Arduino and CH32 projects in reproducible Nix
-environments.
+Generated Make targets for Arduino, ESP-IDF, and CH32 projects in reproducible
+Nix environments.
 
 Each `project.yaml` selects a platform. ACME generates the corresponding
 `build-<platform>-<name>`, `flash-<platform>-<name>`, and
@@ -13,9 +13,9 @@ Each `project.yaml` selects a platform. ACME generates the corresponding
 
 - [Nix](https://nixos.org/download) — provides the host tools and isolated shells
 
-Arduino cores, the CH32 RISC-V compiler, and ch32fun are installed under `bin/`
-automatically on first use. Versions are isolated, so projects pinned to
-different releases do not overwrite each other.
+Arduino cores, ESP-IDF and its target toolchains, the CH32 RISC-V compiler, and
+ch32fun are installed under `bin/` automatically on first use. Versions are
+isolated, so projects pinned to different releases do not overwrite each other.
 
 ---
 
@@ -95,6 +95,39 @@ psk: mypassword
 
 When present, `STASSID` and `STAPSK` are automatically added as compiler defines.
 
+### ESP-IDF
+
+For ordinary applications, only `project.yaml` and one or more `.c`/`.cpp`
+files are required. ACME generates the root and component `CMakeLists.txt`,
+`sdkconfig.defaults`, and partition configuration under `.cache/`. An existing
+full ESP-IDF project with its own root `CMakeLists.txt` is still accepted.
+
+The default ESP-IDF release is `v6.0.3`; `version` also accepts a tag, branch,
+or commit hash. The selected release and its official tools are installed in
+versioned directories under `bin/`.
+
+```yaml
+platform: idf
+target: esp32c3
+version: v6.0.3
+baudrate: 115200
+flash_size: 4MB       # 4MB, 8MB, or 16MB
+filesystem: spiffs
+components:             # direct dependencies enable a minimal build
+  - esp_driver_gpio
+defines:
+  - MY_FEATURE=1
+```
+
+The same optional root `wifi.yaml` used by Arduino supplies `WIFI_SSID` and
+`WIFI_PASSWORD` defines to ESP-IDF builds.
+
+The standard partition tables include NVS, OTA metadata, two equal OTA app
+slots, and a `storage` SPIFFS partition. A `data/` directory enables `fs`,
+`flash-fs`, `serve`, and `ota-fs`; firmware OTA uses HTTP `POST /update` and
+filesystem OTA uses `POST /update-fs`. See `examples/esp-idf/ota` for the
+matching device-side server and mDNS advertisement.
+
 ### CH32
 
 CH32 projects use [ch32fun](https://github.com/cnlohr/ch32fun). The source file
@@ -150,6 +183,10 @@ make build-arduino-ch32-programmer
 make build-ch32-blink
 make build-ch32-uart
 make flash-ch32-blink
+make build-idf-blink
+make build-idf-hello
+make fs-idf-filesystem
+make ota-idf-ota
 ```
 
 If the example has a `data/` directory, ACME also generates filesystem targets:

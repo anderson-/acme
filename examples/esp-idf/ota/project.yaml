@@ -1,0 +1,12 @@
+platform: idf
+target: esp32c3
+flash_size: 4MB
+filesystem: spiffs
+components:
+  - app_update
+  - esp_event
+  - esp_http_server
+  - esp_netif
+  - esp_partition
+  - esp_wifi
+  - nvs_flash

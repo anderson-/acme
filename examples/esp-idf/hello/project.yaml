@@ -1,0 +1,4 @@
+platform: idf
+target: esp32c3
+components:
+  - esp_hw_support
