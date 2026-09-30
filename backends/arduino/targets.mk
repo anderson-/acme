@@ -90,7 +90,9 @@ ${STAMP_LIBS}: ${PROP}
 ${BUILD}:
 	mkdir -p ${BUILD}
 
-${STAMP_BUILD}: ${STAMP_LIBS} ${BUILD} ${ADATA}/packages/${CORE} ${FILES} ${WIFI}
+${STAMP_BUILD}: ${STAMP_LIBS} ${ADATA}/packages/${CORE} ${FILES} ${WIFI_STATE} ${PROP} \
+	${MKDIR}/backends/arduino/backend.mk ${MKDIR}/backends/arduino/targets.mk \
+	${MKDIR}/backends/wifi.mk | ${BUILD}
 	@ $(MAKE) _checksrc
 	@ $(foreach sym,$(INJECT), if [ -d "${PWD}/$(sym)" ]; \
 	    then ln -sf ${PWD}/$(sym)/* ${PWD}/${SRC}; \

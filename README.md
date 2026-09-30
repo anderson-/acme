@@ -94,6 +94,11 @@ psk: mypassword
 ```
 
 When present, `STASSID` and `STAPSK` are automatically added as compiler defines.
+`acme.mk` prefers an application-local `wifi.yaml`; the ACME root file is the
+fallback. Defining `STASSID` or `STAPSK` in `project.yaml` emits a warning; use
+`wifi.yaml` to avoid duplicate definitions. Changing, removing, or recreating
+that file invalidates the Arduino and ESP-IDF build caches. Invalid YAML or a
+missing `yq` causes an explicit error when the file is present.
 
 ### ESP-IDF
 

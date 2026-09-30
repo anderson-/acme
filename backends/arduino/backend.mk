@@ -24,23 +24,9 @@ LOCAL_LIB_FILES := $(foreach lib,$(LIB_DIRS),$(call RWC,${PWD}/$(lib),*.c *.cpp 
 FILES := ${SRC_FILES} ${LOCAL_LIB_FILES}
 
 # --- wifi (optional) ---
-FLAGS :=
-WIFI  := ${MKDIR}/wifi.yaml
-DEV   ?= 1
-
-ifneq (,$(wildcard ${WIFI}))
-# '.ssid // ""' parses with both python-yq (jq) and yq-go (mikefarah);
-# '// empty' is jq-only and fails silently on yq-go.
-SSID := $(shell yq -r '.ssid // ""' "${WIFI}" 2>/dev/null)
-PSK  := $(shell yq -r '.psk // ""' "${WIFI}" 2>/dev/null)
-ifneq (,$(strip ${SSID}))
-FLAGS += -DSTASSID=\"$(SSID)\" -DSTAPSK=\"$(PSK)\"
-else
-$(warning wifi.yaml exists but '.ssid' is empty/unreadable (is yq installed?); building without STASSID/STAPSK)
-endif
-else
-WIFI =
-endif
+include ${MKDIR}/backends/wifi.mk
+FLAGS := ${WIFI_FLAGS}
+DEV ?= 1
 
 FLAGS += $(if ${DEV},-DDEVELOPMENT,)
 FLAGS += $(foreach def,${DEFINES_LIST},-D$(def))
