@@ -7,7 +7,7 @@ CFG   ?= ${ADATA}/arduino-cli.yaml
 
 # Arduino only publishes an Intel ctags binary for macOS; use Nix's native one.
 CTAGS_PATH := $(shell dirname "$$(command -v ctags)")
-ARDUINO := ARDUINO_DATA_DIR=${ADATA} arduino-cli --config-file ${CFG}
+ARDUINO := arduino-cli --config-file ${CFG}
 
 # --- build paths ---
 BUILD       := ${MKDIR}/.cache/build/${CORE}/${SRC}
@@ -32,7 +32,6 @@ FLAGS += $(if ${DEV},-DDEVELOPMENT,)
 FLAGS += $(foreach def,${DEFINES_LIST},-D$(def))
 
 # --- OTA / serial ---
-OTA  := ${ADATA}/packages/${CORE}/hardware/${CORE}/*/tools/espota.py
 MKFS_SPIFFS := ${ADATA}/packages/${CORE}/tools/mkspiffs/*/mkspiffs
 MKFS_LITTLEFS := ${ADATA}/packages/${CORE}/tools/mklittlefs/*/mklittlefs
 MKFS_TOOL := $(if $(filter littlefs,$(FS)),${MKFS_LITTLEFS},${MKFS_SPIFFS})

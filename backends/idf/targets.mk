@@ -79,17 +79,11 @@ flash-fs: fs
 
 .PHONY: ota
 ota: build
-	$(call _ota_resolve)
-	PORT=$${OTAPORT:-${OTA_PORT}}
-	$(INFO_S) "OTA firmware to $$OTAIP:$$PORT${OTA_PATH}..."
-	curl --fail --show-error --data-binary @"${OBJ}" "http://$$OTAIP:$$PORT${OTA_PATH}"
+	$(call _ota_upload,${OBJ},${OTA_PATH})
 
 .PHONY: ota-fs
 ota-fs: fs
-	$(call _ota_resolve)
-	PORT=$${OTAPORT:-${OTA_PORT}}
-	$(INFO_S) "OTA filesystem to $$OTAIP:$$PORT${OTA_FS_PATH}..."
-	curl --fail --show-error --data-binary @"${FS_OBJ}" "http://$$OTAIP:$$PORT${OTA_FS_PATH}"
+	$(call _ota_upload,${FS_OBJ},${OTA_FS_PATH})
 
 .PHONY: clean clean-build
 clean clean-build:

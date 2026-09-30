@@ -24,17 +24,15 @@ fields:
 	@echo "FLAGS: ${FLAGS}"
 
 # --- arduino-cli config ---
-${MKDIR}/bin/data:
+${CFG}: ${MKDIR}/arduino-cli.yaml
 	$(INFO) "Setting up arduino-cli config..."
-	mkdir -p ${ADATA}
-	ADATA=${ADATA}; ADATA=$${ADATA//\//\\\/}; \
-	sed "s/arduino_data.*/arduino_data: $${ADATA}/g" \
-		${MKDIR}/arduino-cli.yaml > ${CFG}
-	ALIBS=${ALIBS}; ALIBS=$${ALIBS//\//\\\/}; \
-	sed -i "s/  user:.*/  user: $${ALIBS}/g" ${CFG}
+	mkdir -p "$(dir ${CFG})" "${ALIBS}"
+	ADATA="${ADATA}" ALIBS="${ALIBS}" yq \
+		'.directories.data = strenv(ADATA) | .directories.user = strenv(ALIBS) | del(.arduino_data)' \
+		"${MKDIR}/arduino-cli.yaml" > "${CFG}"
 
 # --- core install ---
-${ADATA}/package_index.json: ${MKDIR}/bin/data
+${ADATA}/package_index.json: ${CFG}
 	$(INFO) "Updating core index..."
 	${ARDUINO} core update-index
 	touch ${ADATA}/package_index.json
@@ -92,7 +90,7 @@ ${BUILD}:
 
 ${STAMP_BUILD}: ${STAMP_LIBS} ${ADATA}/packages/${CORE} ${FILES} ${WIFI_STATE} ${PROP} \
 	${MKDIR}/backends/arduino/backend.mk ${MKDIR}/backends/arduino/targets.mk \
-	${MKDIR}/backends/wifi.mk | ${BUILD}
+	${MKDIR}/backends/wifi.mk $(wildcard ${MKDIR}/libraries/AcmeOTA/src/*) | ${BUILD}
 	@ $(MAKE) _checksrc
 	@ $(foreach sym,$(INJECT), if [ -d "${PWD}/$(sym)" ]; \
 	    then ln -sf ${PWD}/$(sym)/* ${PWD}/${SRC}; \
@@ -104,6 +102,7 @@ ${STAMP_BUILD}: ${STAMP_LIBS} ${ADATA}/packages/${CORE} ${FILES} ${WIFI_STATE} $
 	trap "kill -- -$$WATCH_PID 2>/dev/null; wait $$WATCH_PID 2>/dev/null; printf '\r\033[K' >&2" EXIT INT TERM; \
 	CMD="${ARDUINO} compile --fqbn ${FQBN} \
 		$(foreach lib,$(LIB_DIRS),--libraries ${PWD}/$(lib)) \
+		--libraries \"${MKDIR}/libraries\" \
 		--build-property 'runtime.tools.ctags.path=${CTAGS_PATH}' \
 		--build-property 'compiler.cpp.extra_flags=${FLAGS}' \
 		--build-property 'compiler.c.extra_flags=${FLAGS}' \
@@ -152,15 +151,11 @@ flash-fs: ${BUILD}/img.bin
 # --- OTA ---
 .PHONY: ota
 ota: ${STAMP_BUILD}
-	$(call _ota_resolve)
-	$(INFO_S) "OTA flash to $$OTAIP:$$OTAPORT..."
-	time python3 ${OTA} -i "$$OTAIP" -p $$OTAPORT -f ${BUILD}/*.ino.bin
+	$(call _ota_upload,${BUILD}/${SKETCH}.ino.bin,${OTA_PATH})
 
 .PHONY: ota-fs
 ota-fs: ${BUILD}/img.bin
-	$(call _ota_resolve)
-	$(INFO_S) "OTA filesystem to $$OTAIP:$$OTAPORT..."
-	time python3 ${OTA} -i "$$OTAIP" -p $$OTAPORT -s -f ${BUILD}/img.bin
+	$(call _ota_upload,${BUILD}/img.bin,${OTA_FS_PATH})
 
 # --- deploy (no DEV flag) ---
 .PHONY: deploy

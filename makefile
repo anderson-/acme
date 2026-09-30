@@ -1,5 +1,6 @@
 MKDIR ?= ${PWD}
 SRC   ?= main
+NIX_SHELL_FLAGS ?=
 include ${MKDIR}/utils.mk
 
 .ONESHELL:
@@ -18,10 +19,14 @@ shell:
 		$(MAKE) targets; \
 		$(OK_S) "ACME shell already active."; \
 	else \
-		nix-shell ${MKDIR} --run 'make targets'; \
+		if ! command -v nix-shell >/dev/null 2>&1; then \
+			$(ERROR_S) "nix-shell not found. See https://nixos.org/download"; \
+			exit 127; \
+		fi; \
+		nix-shell ${NIX_SHELL_FLAGS} "${MKDIR}" --run 'make targets'; \
 		STATUS=$$?; \
 		if [ "$$STATUS" -ne 0 ]; then \
-			$(ERROR_S) "nix-shell not found. See https://nixos.org/download"; \
+			$(ERROR_S) "Could not create the ACME Nix environment. See the error above."; \
 			exit "$$STATUS"; \
 		fi; \
 	fi

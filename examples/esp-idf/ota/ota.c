@@ -1,9 +1,12 @@
 #include <string.h>
+#include <stdio.h>
 
 #include "esp_check.h"
 #include "esp_event.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
+#include "esp_mac.h"
+#include "esp_app_desc.h"
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
 #include "esp_system.h"
@@ -24,6 +27,31 @@
 static const char *TAG = "acme-ota";
 static EventGroupHandle_t wifi_events;
 static const EventBits_t WIFI_READY = BIT0;
+static char device_id[13];
+static char hostname[32];
+
+static esp_err_t device_info(httpd_req_t *request)
+{
+    const esp_app_desc_t *app = esp_app_get_description();
+    char version[sizeof(app->version) * 6 + 1];
+    char *out = version;
+    for (size_t i = 0; i < sizeof(app->version) && app->version[i]; ++i) {
+        unsigned char character = app->version[i];
+        if (character < 32) out += sprintf(out, "\\u%04x", (unsigned)character);
+        else {
+            if (character == '"' || character == '\\') *out++ = '\\';
+            *out++ = character;
+        }
+    }
+    *out = '\0';
+    char body[384];
+    snprintf(body, sizeof(body),
+             "{\"acme\":1,\"ota_protocol\":\"http-v1\",\"id\":\"%s\","
+             "\"hostname\":\"%s.local\",\"platform\":\"esp-idf\",\"version\":\"%s\"}",
+             device_id, hostname, version);
+    httpd_resp_set_type(request, "application/json");
+    return httpd_resp_sendstr(request, body);
+}
 
 static esp_err_t receive_body(httpd_req_t *request,
                               esp_err_t (*write_chunk)(const void *, size_t, void *),
@@ -31,6 +59,7 @@ static esp_err_t receive_body(httpd_req_t *request,
 {
     char buffer[1024];
     int remaining = request->content_len;
+    if (remaining <= 0) return ESP_ERR_INVALID_SIZE;
     while (remaining > 0) {
         int received = httpd_req_recv(request, buffer,
                                       remaining < sizeof(buffer) ? remaining : sizeof(buffer));
@@ -51,9 +80,16 @@ static esp_err_t ota_write(const void *data, size_t size, void *context)
 static esp_err_t firmware_update(httpd_req_t *request)
 {
     const esp_partition_t *partition = esp_ota_get_next_update_partition(NULL);
+    if (!partition || request->content_len <= 0 || request->content_len > partition->size) {
+        httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "invalid firmware image size");
+        return ESP_FAIL;
+    }
     esp_ota_handle_t handle;
-    ESP_RETURN_ON_ERROR(esp_ota_begin(partition, request->content_len, &handle), TAG,
-                        "OTA begin failed");
+    esp_err_t begin = esp_ota_begin(partition, request->content_len, &handle);
+    if (begin != ESP_OK) {
+        httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, esp_err_to_name(begin));
+        return begin;
+    }
     esp_err_t result = receive_body(request, ota_write, &handle);
     if (result == ESP_OK) result = esp_ota_end(handle);
     else esp_ota_abort(handle);
@@ -85,7 +121,7 @@ static esp_err_t filesystem_update(httpd_req_t *request)
 {
     const esp_partition_t *partition = esp_partition_find_first(
         ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, "storage");
-    if (partition == NULL || request->content_len > partition->size) {
+    if (partition == NULL || request->content_len <= 0 || request->content_len > partition->size) {
         httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "invalid filesystem image");
         return ESP_FAIL;
     }
@@ -105,6 +141,11 @@ static esp_err_t filesystem_update(httpd_req_t *request)
 
 static void start_update_server(void)
 {
+    uint8_t mac[6];
+    ESP_ERROR_CHECK(esp_read_mac(mac, ESP_MAC_WIFI_STA));
+    snprintf(device_id, sizeof(device_id), "%02x%02x%02x%02x%02x%02x",
+             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    snprintf(hostname, sizeof(hostname), "acme-idf-%s", device_id);
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     httpd_handle_t server = NULL;
     ESP_ERROR_CHECK(httpd_start(&server, &config));
@@ -116,11 +157,18 @@ static void start_update_server(void)
     };
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &firmware));
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &filesystem));
+    const httpd_uri_t info = {
+        .uri = "/info", .method = HTTP_GET, .handler = device_info,
+    };
+    ESP_ERROR_CHECK(httpd_register_uri_handler(server, &info));
 
     ESP_ERROR_CHECK(mdns_init());
-    ESP_ERROR_CHECK(mdns_hostname_set("acme-idf"));
+    ESP_ERROR_CHECK(mdns_hostname_set(hostname));
     ESP_ERROR_CHECK(mdns_instance_name_set("ACME ESP-IDF OTA"));
-    ESP_ERROR_CHECK(mdns_service_add("ACME ESP-IDF OTA", "_arduino", "_tcp", 80, NULL, 0));
+    mdns_txt_item_t txt[] = {
+        {"acme", "1"}, {"ota_protocol", "http-v1"}, {"id", device_id},
+    };
+    ESP_ERROR_CHECK(mdns_service_add(hostname, "_arduino", "_tcp", 80, txt, 3));
     ESP_LOGI(TAG, "OTA ready: POST /update or /update-fs");
 }
 

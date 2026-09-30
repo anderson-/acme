@@ -20,6 +20,7 @@ class WifiCacheTest(unittest.TestCase):
                 build.mkdir()
                 core = directory / 'data/packages/test'
                 core.mkdir(parents=True)
+                (directory / 'data/arduino-cli.yaml').write_text('directories: {}\n')
                 (directory / 'data/package_index.json').touch()
                 core.touch()
                 libs = directory / 'libs'
@@ -31,6 +32,7 @@ WIFI := {wifi}
 SRC := examples/esp-idf/ota
 FLASH_SIZE := 4MB
 CORE := test
+CFG := {directory}/data/arduino-cli.yaml
 include {ROOT}/backends/{backend}/backend.mk
 ''' + ('${STAMP_BUILD}:\n\t@touch $@\n' if backend == 'arduino' else ''))
                 stamp = build / ('.stamp-build' if backend == 'arduino' else '.config-stamp')

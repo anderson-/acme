@@ -1,4 +1,4 @@
-{ pkgs ? import <nixpkgs> {} }:
+{ pkgs ? import ../../nix/pkgs.nix {} }:
 
 let
   pythonEnv = pkgs.python311.withPackages (ps: with ps; [

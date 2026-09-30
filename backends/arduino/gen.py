@@ -21,6 +21,9 @@ def variables(project):
     return {
         "FQBN": board,
         "CORE": board.split(":", 1)[0] if board else "",
+        "OTA_PORT": project.get("ota_port", 80),
+        "OTA_PATH": project.get("ota_path", "/update"),
+        "OTA_FS_PATH": project.get("ota_fs_path", "/update-fs"),
         "BAUD": project.get("baudrate", 115200),
         "DEPENDENCIES": make_list(project.get("dependencies")),
         "LIB_DIRS": make_list(project.get("lib_dirs")),

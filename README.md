@@ -183,6 +183,7 @@ make build-arduino-blink
 make build-arduino-blink-c3-zero
 make build-arduino-ota32
 make build-arduino-ota8266
+make build-arduino-ota-s3
 make build-arduino-websockets
 make build-arduino-ch32-programmer
 make build-ch32-blink
@@ -212,9 +213,12 @@ Override any of these on the command line:
 ```sh
 make build-arduino-blink
 make flash-arduino-blink PORT=/dev/cu.usbmodem1234
-make ota-arduino-websockets OTAIP=192.168.1.42 OTAPORT=3232
+make ota-arduino-websockets OTAIP=192.168.1.42 OTAPORT=80
 make monitor-arduino-blink BAUD=9600
 ```
+
+HTTP OTA uses port 80 by default; set `OTAPORT` only when the device serves the
+ACME HTTP protocol on a different port. Setting `OTAIP` bypasses discovery.
 
 ---
 
@@ -231,7 +235,16 @@ Select device [1]:
 
 The selection is saved in `.cache/devices/usb/<sketch>` or
 `.cache/devices/ota/<sketch>`. If the device is no longer available on the next
-run, ACME asks whether to clear the saved config and rescan.
+run, ACME asks whether to clear the saved config and rescan. OTA also verifies
+`/info` before uploading and never silently replaces a saved device; use
+`make forget-ota-<platform>-<name>` to pick a different one.
+
+## OTA
+
+Firmware `ota` (and `ota-fs`) upload over HTTP (`POST /update`,
+`POST /update-fs`); `scan-<platform>-<name>` lists devices on the network. The
+bundled `AcmeOTA` library supplies the Arduino device side, and the `ota32`,
+`ota8266`, and ESP-IDF `ota` examples show the required OTA-capable partitions.
 
 ---
 

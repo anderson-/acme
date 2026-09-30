@@ -1,13 +1,9 @@
-{ pkgs ? import <nixpkgs> {} }:
+{ pkgs ? import ../../nix/pkgs.nix {} }:
 
 let
   pythonEnv = pkgs.python311.withPackages (ps: with ps; [
-    virtualenv
     pyserial
     pyyaml
-    zeroconf
-    websockets
-    yq
   ]);
   esptoolPkg = pkgs.python311Packages.esptool or pkgs.esptool;
 in
@@ -16,10 +12,12 @@ pkgs.mkShell {
     pythonEnv
     esptoolPkg
     jq
+    yq-go
     curl
     rsync
     gnumake
     bash
+    git
     bash-completion
     arduino-cli
     universal-ctags

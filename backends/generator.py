@@ -54,7 +54,7 @@ def render(output, project_file, name, source, platform, variables, actions):
                 f"ifdef {shell_flag}",
                 f"\t@{command.format(action=action)}",
                 "else",
-                f"\t@nix-shell $(MKDIR)/backends/{platform} "
+                f"\t@nix-shell $(NIX_SHELL_FLAGS) \"$(MKDIR)/backends/{platform}\" "
                 f"--run '{command.format(action=action)}'",
                 "endif",
                 "",
