@@ -1,4 +1,5 @@
 MKDIR ?= ${PWD}
+MKDIR := $(abspath ${MKDIR})
 SRC   ?= main
 NIX_SHELL_FLAGS ?=
 include ${MKDIR}/utils.mk

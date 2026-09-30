@@ -23,6 +23,8 @@ fields:
 	@echo "BAUD: ${BAUD}"
 
 ${IDF_CHECKOUT}:
+	set -e
+	rm -rf ${IDF_ROOT}
 	mkdir -p $(dir ${IDF_ROOT})
 	git clone --filter=blob:none --no-checkout ${IDF_REPOSITORY} ${IDF_ROOT}
 	git -C ${IDF_ROOT} fetch --depth 1 origin "${IDF_VERSION}"
@@ -31,6 +33,7 @@ ${IDF_CHECKOUT}:
 	touch $@
 
 ${IDF_INSTALLED}: ${IDF_CHECKOUT}
+	set -e
 	mkdir -p ${IDF_TOOLS_PATH}
 	IDF_TOOLS_PATH="${IDF_TOOLS_PATH}" ${IDF_ROOT}/install.sh ${TARGET}
 	touch $@
