@@ -17,6 +17,8 @@ fields:
 	@echo "DEFINES_LIST: ${DEFINES_LIST}"
 
 ${FUN_CHECKOUT}:
+	set -e
+	rm -rf ${FUN}
 	mkdir -p $(dir ${FUN})
 	git clone --filter=blob:none --no-checkout ${CH32FUN_REPOSITORY} ${FUN}
 	git -C ${FUN} fetch --depth 1 origin "${CH32FUN_REF}"
