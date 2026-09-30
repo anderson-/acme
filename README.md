@@ -119,8 +119,8 @@ defines:
   - MY_FEATURE=1
 ```
 
-The same optional root `wifi.yaml` used by Arduino supplies `WIFI_SSID` and
-`WIFI_PASSWORD` defines to ESP-IDF builds.
+The same optional root `wifi.yaml` used by Arduino supplies `STASSID` and
+`STAPSK` defines to ESP-IDF builds.
 
 The standard partition tables include NVS, OTA metadata, two equal OTA app
 slots, and a `storage` SPIFFS partition. A `data/` directory enables `fs`,

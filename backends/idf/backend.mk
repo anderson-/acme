@@ -23,9 +23,9 @@ ifneq (,$(wildcard ${WIFI}))
 SSID := $(shell yq -r '.ssid // ""' "${WIFI}" 2>/dev/null)
 PSK := $(shell yq -r '.psk // ""' "${WIFI}" 2>/dev/null)
 ifneq (,$(strip ${SSID}))
-DEFINES += -DWIFI_SSID=\"$(SSID)\" -DWIFI_PASSWORD=\"$(PSK)\"
+DEFINES += -DSTASSID=\"$(SSID)\" -DSTAPSK=\"$(PSK)\"
 else
-$(warning wifi.yaml exists but '.ssid' is empty/unreadable (is yq installed?); building without WIFI_SSID)
+$(warning wifi.yaml exists but '.ssid' is empty/unreadable (is yq installed?); building without STASSID/STAPSK)
 endif
 endif
 

@@ -14,11 +14,11 @@
 #include "mdns.h"
 #include "nvs_flash.h"
 
-#ifndef WIFI_SSID
-#define WIFI_SSID "replace-me"
+#ifndef STASSID
+#define STASSID "replace-me"
 #endif
-#ifndef WIFI_PASSWORD
-#define WIFI_PASSWORD "replace-me"
+#ifndef STAPSK
+#define STAPSK "replace-me"
 #endif
 
 static const char *TAG = "acme-ota";
@@ -146,8 +146,8 @@ static void connect_wifi(void)
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, wifi_event, NULL));
     wifi_config_t config = {0};
-    strlcpy((char *)config.sta.ssid, WIFI_SSID, sizeof(config.sta.ssid));
-    strlcpy((char *)config.sta.password, WIFI_PASSWORD, sizeof(config.sta.password));
+    strlcpy((char *)config.sta.ssid, STASSID, sizeof(config.sta.ssid));
+    strlcpy((char *)config.sta.password, STAPSK, sizeof(config.sta.password));
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &config));
     ESP_ERROR_CHECK(esp_wifi_start());
